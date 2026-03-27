@@ -498,6 +498,25 @@ select.sel:focus{border-color:var(--primary)}
   </div>
 </div>
 
+<!-- Reset passcode overlay (online games) -->
+<div id="resetOverlay" class="overlay">
+  <div class="promo-card" style="max-width:320px;width:90%">
+    <h3>↺ Reset Board</h3>
+    <p style="font-size:12px;color:var(--muted);font-weight:700;margin-bottom:14px">
+      Enter the room passcode to reset to the starting position.<br>Both players will see the reset.
+    </p>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <input type="password" id="resetPasscodeInput" class="fb-field" placeholder="Room passcode" style="flex:1">
+      <button class="btn btn-sm" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);padding:4px 10px;font-size:13px" onclick="togglePwVis('resetPasscodeInput',this)">👁</button>
+    </div>
+    <div id="resetPasscodeError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-bottom:10px;min-height:16px"></div>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button class="btn btn-play" id="resetConfirmBtn">↺ Reset Game</button>
+      <button class="btn btn-undo btn-sm" onclick="document.getElementById('resetOverlay').classList.remove('open')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Winner overlay -->
 <div id="winOverlay" class="overlay">
   <div class="win-card">
@@ -565,7 +584,7 @@ select.sel:focus{border-color:var(--primary)}
             <span id="turnText">White's Turn!</span>
           </div>
           <div id="boardGrid" class="board-grid" aria-label="Chessboard"></div>
-          <div id="statusText" class="status-text">Choose a mode and press ▶ Play!</div>
+          <div id="statusText" class="status-text">Press ↺ Reset to start a new game!</div>
         </div>
       </div>
 
@@ -614,7 +633,7 @@ select.sel:focus{border-color:var(--primary)}
           </div>
         </div>
         <div class="btn-row">
-          <button id="newGameBtn" class="btn btn-play">▶ Play!</button>
+          <button id="resetBtn" class="btn btn-undo">↺ Reset</button>
           <button id="undoBtn" class="btn btn-undo btn-sm">↩ Undo</button>
           <button id="hintBtn" class="btn btn-hint btn-sm">💡 Hint</button>
         </div>
@@ -1344,6 +1363,7 @@ async function onOnlineGameStart(isRestore){
   if(myColor==='b')document.querySelector('.board-col').classList.add('board-flipped');
   else document.querySelector('.board-col').classList.remove('board-flipped');
 
+  let lastResetAt=null;
   unsubRoom=roomRef.onSnapshot(snap=>{
     const data=snap.data();if(!data)return;
     const oppEntry=Object.entries(data.players||{}).find(([sid])=>sid!==mySessionId);
@@ -1352,6 +1372,11 @@ async function onOnlineGameStart(isRestore){
     if(opponentOnline!==wasOnline)updateOpponentBadge();
     if(data.status==='deleted'&&onlineMode){showAlertOverlay('🗑️','Room Deleted','This room was deleted.');detachAndReset();return;}
     if(data.result&&!gameOver){gameOver=true;stopClock();showWinOverlay(data.result.trophy,data.result.title,data.result.sub);updateBanner();}
+    // Detect remote board reset
+    if(data.resetAt&&data.resetAt!==lastResetAt){
+      lastResetAt=data.resetAt;
+      applyOnlineReset();
+    }
   });
 
   fbMovesSeen=new Set();
@@ -1603,6 +1628,22 @@ function applyRemoteMove(mv, force=false){
   saveGameStateLocal();
   const fin=evalGameStatus();
   if(!fin&&inCheck(turn))SFX.check();
+}
+
+function applyOnlineReset(){
+  // Reset board state locally — mirrors what startNewGame(true) does
+  board=initialBoard();turn='w';castlingRights={wK:true,wQ:true,bK:true,bQ:true};
+  enPassantTarget=null;halfmoveClock=0;fullmoveNumber=1;
+  moveHistory=[];stateStack=[];lastMove=null;gameOver=false;pendingPromo=null;
+  fbMovesSeen=new Set(); // moves collection was wiped on Firestore
+  stopClock();firstMoveMade=false;
+  if(timerEnabled){
+    whiteTimeMs=baseMinutes*60000;blackTimeMs=baseMinutes*60000;
+  }
+  saveGameStateLocal();
+  clearSel();renderBoard();renderMoves();updateBanner();
+  statusEl.textContent=myColor==='w'?'↺ Board reset! Your move, White.':'↺ Board reset! Waiting for White…';
+  renderClocks();
 }
 
 function showAlertOverlay(trophy,title,sub){
@@ -2213,9 +2254,63 @@ document.getElementById('modeSelect').addEventListener('change',()=>{humanVsAI=d
 document.getElementById('aiLevelSelect').addEventListener('change',()=>{aiLevel=document.getElementById('aiLevelSelect').value});
 document.getElementById('timeSelect').addEventListener('change',()=>{baseMinutes=+document.getElementById('timeSelect').value;resetClocks()});
 document.getElementById('incrSelect').addEventListener('change',()=>{incrementSec=+document.getElementById('incrSelect').value;resetClocks()});
-document.getElementById('newGameBtn').addEventListener('click',startNewGame);
+document.getElementById('resetBtn').addEventListener('click', handleReset);
 document.getElementById('undoBtn').addEventListener('click',handleUndo);
 document.getElementById('hintBtn').addEventListener('click',showHint);
+
+// ── Reset handler ──
+function handleReset(){
+  if(onlineMode){
+    // Online: show passcode overlay
+    document.getElementById('resetPasscodeInput').value='';
+    document.getElementById('resetPasscodeError').textContent='';
+    document.getElementById('resetOverlay').classList.add('open');
+  }else{
+    // Offline: simple confirm then reset
+    if(moveHistory.length>0&&!confirm('Reset the board to the starting position?'))return;
+    startNewGame(false);
+  }
+}
+
+document.getElementById('resetConfirmBtn').addEventListener('click', async()=>{
+  const errEl=document.getElementById('resetPasscodeError');
+  errEl.textContent='';
+  const passcode=document.getElementById('resetPasscodeInput').value;
+  if(!passcode){errEl.textContent='⚠️ Enter the room passcode';return;}
+
+  errEl.textContent='Verifying…';
+  // Fetch room to check passcode
+  let snap;
+  try{snap=await roomRef.get();}
+  catch(e){errEl.textContent='❌ Connection error: '+e.message;return;}
+  if(!snap.exists){errEl.textContent='❌ Room not found';return;}
+  const room=snap.data();
+  if(!room.passcodeHash){errEl.textContent='❌ This room has no passcode set';return;}
+  const hash=await sha256(passcode);
+  if(hash!==room.passcodeHash){errEl.textContent='❌ Wrong passcode';return;}
+
+  errEl.textContent='Resetting…';
+  try{
+    // Delete all moves in subcollection
+    const movSnap=await roomRef.collection('moves').get();
+    const batch=fbFs.batch();
+    movSnap.forEach(d=>batch.delete(d.ref));
+    await batch.commit();
+
+    // Reset room state — broadcast signal to both players
+    await roomRef.update({
+      gameState:null,
+      result:null,
+      status:'playing',
+      resetAt:Date.now()
+    });
+
+    document.getElementById('resetOverlay').classList.remove('open');
+    // Local reset handled by onSnapshot detecting resetAt change
+  }catch(e){
+    errEl.textContent='❌ Reset failed: '+e.message;
+  }
+});
 
 // Timer toggle
 const timerToggleEl=document.getElementById('timerToggle');
@@ -2312,7 +2407,7 @@ document.getElementById('deleteRoomCode').addEventListener('input', e=>{
 // Win overlay
 document.getElementById('winNewGameBtn').addEventListener('click', ()=>{
   document.getElementById('winOverlay').classList.remove('open');
-  if(onlineMode){ leaveRoom(); switchView('online'); }
+  if(onlineMode){ handleReset(); }
   else startNewGame();
 });
 
