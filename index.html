@@ -1355,29 +1355,43 @@ async function onOnlineGameStart(isRestore){
   });
 
   fbMovesSeen=new Set();
-  // Fetch all existing moves
+
+  // Set up the live listener FIRST. Firestore will deliver all existing docs
+  // as type:'added' in the initial snapshot — we capture those keys into
+  // fbMovesSeen so they are never double-applied.
+  let initialSnapshotHandled=false;
   let existingMoves=[];
-  try{
-    const movSnap=await roomRef.collection('moves').orderBy('ts').get();
-    movSnap.forEach(d=>{existingMoves.push({id:d.id,...d.data()});fbMovesSeen.add(d.id);});
-  }catch(e){console.warn('Could not fetch existing moves:',e);}
 
-  if(!isRestore && existingMoves.length>0){
-    // Replay all existing moves onto the fresh board
-    existingMoves.forEach(mv=>applyRemoteMove(mv, true));
-  }
-
-  unsubMoves=roomRef.collection('moves').orderBy('ts').onSnapshot(snap=>{
-    snap.docChanges().forEach(change=>{
-      if(change.type!=='added')return;
-      const key=change.doc.id;
-      if(fbMovesSeen.has(key))return;
-      fbMovesSeen.add(key);
-      const mv=change.doc.data();
-      if(mv.color===myColor)return;
-      applyRemoteMove(mv);
+  await new Promise(resolve=>{
+    unsubMoves=roomRef.collection('moves').orderBy('ts').onSnapshot(snap=>{
+      if(!initialSnapshotHandled){
+        // First delivery: seed fbMovesSeen and collect existing moves for replay
+        initialSnapshotHandled=true;
+        snap.forEach(d=>{
+          fbMovesSeen.add(d.id);
+          existingMoves.push({id:d.id,...d.data()});
+        });
+        resolve();
+        return;
+      }
+      // Subsequent deliveries: live move updates
+      snap.docChanges().forEach(change=>{
+        if(change.type!=='added')return;
+        const key=change.doc.id;
+        if(fbMovesSeen.has(key))return;
+        fbMovesSeen.add(key);
+        applyRemoteMove(change.doc.data());
+      });
+    },err=>{
+      console.warn('[Moves listener error]',err);
+      resolve();
     });
   });
+
+  // Replay existing moves for a fresh joiner (not a restore)
+  if(!isRestore && existingMoves.length>0){
+    existingMoves.forEach(mv=>applyRemoteMove(mv, true));
+  }
 
   window.removeEventListener('beforeunload',_markMeOffline);
   window.addEventListener('beforeunload',_markMeOffline);
@@ -1555,14 +1569,24 @@ function _markMeOffline(){
 
 function pushMoveToFirebase(move,promo){
   if(!roomRef)return;
-  roomRef.collection('moves').add({fromR:move.fromR,fromC:move.fromC,toR:move.toR,toC:move.toC,promo:promo||null,color:myColor,ts:Date.now()});
+  // Pre-generate the document ID so we can add it to fbMovesSeen BEFORE
+  // the snapshot fires — this guarantees the echo is always filtered
+  // regardless of color checks, preventing the piece from freezing.
+  const docRef=roomRef.collection('moves').doc();
+  fbMovesSeen.add(docRef.id);
+  docRef.set({
+    fromR:move.fromR,fromC:move.fromC,toR:move.toR,toC:move.toC,
+    promo:promo||null,color:myColor,sid:mySessionId,ts:Date.now()
+  }).catch(e=>console.error('[Move push error]',e));
   saveGameStateLocal();
   roomRef.update({gameState:serializeGameState()}).catch(()=>{});
 }
 
 function applyRemoteMove(mv, force=false){
   if(gameOver)return;
-  if(!force && mv.color===myColor)return; // skip own echoed moves in live listener
+  // Primary filter: same session = own move echo → skip
+  // Secondary filter: same color = own move (backup)
+  if(!force && (mv.sid===mySessionId || mv.color===myColor))return;
   const legal=allLegal(turn);
   const matched=legal.find(m=>m.fromR===mv.fromR&&m.fromC===mv.fromC&&m.toR===mv.toR&&m.toC===mv.toC);
   if(!matched)return;
