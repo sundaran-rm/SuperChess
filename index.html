@@ -442,7 +442,18 @@ select.sel:focus{border-color:var(--primary)}
 /* Board flip for Black player */
 .board-flipped #boardGrid{transform:rotate(180deg)}
 .board-flipped .board-square{transform:rotate(180deg)}
-/* Hosted rooms list */
+/* Lobby */
+.lobby-room-card{background:var(--card);border:2.5px solid var(--border);border-radius:16px;padding:11px 13px;transition:border-color .18s,box-shadow .18s}
+.lobby-room-card:hover{border-color:var(--primary);box-shadow:var(--shsm)}
+.lobby-room-code{font-family:'Bubblegum Sans',cursive;font-size:22px;letter-spacing:3px;color:var(--primary)}
+.lobby-room-meta{font-size:11px;color:var(--muted);font-weight:700;margin-top:2px}
+.lobby-room-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.lobby-badge{font-size:10px;font-weight:800;padding:2px 8px;border-radius:99px;border:2px solid}
+.lobby-badge.waiting{background:#fff9e6;border-color:var(--accent-d);color:var(--accent-d)}
+.lobby-badge.playing{background:#ecfdf5;border-color:var(--secondary);color:var(--secondary-d)}
+.lobby-badge.full{background:#fff5f5;border-color:var(--primary);color:var(--primary-d)}
+.lobby-empty{text-align:center;color:var(--muted);font-weight:700;font-size:13px;padding:18px 0}
+/* Hosted room row */
 .hosted-room-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:var(--bl);border:2px solid var(--border);border-radius:14px}
 .room-code-pill{display:inline-flex;align-items:center;gap:5px;font-family:'Bubblegum Sans',cursive;font-size:20px;letter-spacing:4px;color:var(--primary);cursor:pointer;padding:4px 10px;border-radius:10px;background:var(--card);border:2px dashed var(--accent-d);transition:background .2s}
 .room-code-pill:hover{background:var(--bmove)}
@@ -653,31 +664,24 @@ select.sel:focus{border-color:var(--primary)}
       <!-- ① FIREBASE CONFIG CARD -->
       <div class="pc" id="fbConfigCard">
         <div class="ptitle" style="justify-content:space-between">
-          <span>🔥 Firebase Connection</span>
+          <span>🔥 Firebase</span>
           <span id="fbStatusBadge" class="conn-badge disconnected"><span class="conn-dot"></span> Not connected</span>
         </div>
-
-        <!-- Collapsed view when configured -->
         <div id="fbConfigSummary" style="display:none;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px">
           <span style="color:var(--secondary-d)">🔥 Firebase connected</span>
           <button class="btn btn-sm" id="fbEditBtn" style="background:var(--bl);border:2px solid var(--border);color:var(--text);font-size:11px;padding:3px 10px;margin-left:8px">✏️ Edit</button>
           <button class="btn btn-sm" id="fbClearBtn" style="background:#fff5f5;border:2px solid var(--primary);color:var(--primary-d);font-size:11px;padding:3px 10px;margin-left:4px">🗑 Clear</button>
         </div>
-
-        <!-- Config form -->
         <div id="fbConfigForm">
           <p style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:10px;line-height:1.6">
-            Paste your <strong>Firebase config</strong> JSON below, or fill fields manually.<br>
-            Get it from <strong>Firebase Console → Project Settings → Your apps → Web</strong>.<br>
-            Uses <strong>Firestore</strong> — no databaseURL needed!
+            Paste your <strong>Firebase config</strong> from <strong>Project Settings → Your apps → Web</strong>. Uses Firestore — no databaseURL needed!
           </p>
-          <textarea id="fbConfigPaste" class="fb-textarea" rows="4" placeholder='Paste full config JSON here, e.g.:
-{ "apiKey": "...", "databaseURL": "...", ... }'></textarea>
+          <textarea id="fbConfigPaste" class="fb-textarea" rows="3" placeholder='Paste config JSON here…'></textarea>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">
-            <input class="fb-field" id="fbApiKey"      placeholder="apiKey *"         type="password">
-            <input class="fb-field" id="fbProjectId"   placeholder="projectId *"      type="text">
-            <input class="fb-field" id="fbAuthDomain"  placeholder="authDomain"       type="text">
-            <input class="fb-field" id="fbAppId"       placeholder="appId"            type="text">
+            <input class="fb-field" id="fbApiKey"     placeholder="apiKey *"    type="password">
+            <input class="fb-field" id="fbProjectId"  placeholder="projectId *" type="text">
+            <input class="fb-field" id="fbAuthDomain" placeholder="authDomain"  type="text">
+            <input class="fb-field" id="fbAppId"      placeholder="appId"       type="text">
           </div>
           <div style="display:flex;gap:7px;margin-top:10px">
             <button class="btn btn-play btn-sm" id="fbSaveConfigBtn" style="flex:1">💾 Save & Connect</button>
@@ -687,88 +691,106 @@ select.sel:focus{border-color:var(--primary)}
         </div>
       </div>
 
-      <!-- ② CREATE ROOM (hidden until Firebase ready) -->
-      <div class="pc" id="fbCreateSection" style="display:none">
-        <div class="ob-title">🏠 Create a Room</div>
-        <p style="font-size:12px;color:var(--muted);font-weight:700;margin-bottom:10px">You'll be <strong>White</strong>. Share your room invite with a friend!</p>
-        <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px">
-          <div class="sw"><select id="onlineTimeSelect" class="sel">
-            <option value="3">3 min</option>
-            <option value="5" selected>5 min</option>
-            <option value="10">10 min</option>
-          </select></div>
-          <div class="sw"><select id="onlineIncrSelect" class="sel">
-            <option value="0">+0s</option>
-            <option value="5">+5s</option>
-            <option value="10" selected>+10s</option>
-            <option value="30">+30s</option>
-          </select></div>
-          <label class="toggle-wrap" style="margin-left:4px">
-            <input type="checkbox" id="onlineTimerToggle" checked>
-            <span class="toggle-track"><span class="toggle-thumb"></span></span>
-            <span style="font-weight:800;font-size:11px">Timer</span>
-          </label>
-        </div>
-        <button class="btn btn-play" id="createRoomBtn" style="width:100%">🏠 Create Room</button>
-      </div>
+      <!-- ② LOBBY (shown when Firebase is ready) -->
+      <div id="fbLobby" style="display:none;flex-direction:column;gap:10px">
 
-      <!-- ③ WAITING SECTION (host sees this, lists all open rooms) -->
-      <div class="pc" id="fbWaitingSection" style="display:none">
-        <div class="ob-title" style="display:flex;align-items:center;justify-content:space-between">
-          <span>⏳ Your Open Rooms</span>
-          <button class="btn btn-play btn-sm" id="addAnotherRoomBtn">+ New Room</button>
-        </div>
-        <p style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:10px">
-          Tap a code to copy · use 🔐 to generate an encrypted invite for any room.
-        </p>
-        <div id="hostedRoomsList" style="display:flex;flex-direction:column;gap:10px"></div>
-      </div>
-
-      <!-- ④ JOIN ROOM -->
-      <div class="pc" id="fbJoinSection" style="display:none">
-        <div class="ob-title">🤝 Join a Room</div>
-
-        <!-- Import invite tab -->
-        <div style="display:flex;gap:0;margin-bottom:10px;border:2px solid var(--border);border-radius:12px;overflow:hidden">
-          <button class="join-tab active" id="joinTabManual" data-tab="manual">✍️ Manual</button>
-          <button class="join-tab" id="joinTabImport" data-tab="import">🔐 Import Invite</button>
+        <!-- Create room -->
+        <div class="pc">
+          <div class="ob-title">🏠 Create a Room</div>
+          <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px">
+            <div class="sw"><select id="onlineTimeSelect" class="sel">
+              <option value="3">3 min</option><option value="5" selected>5 min</option><option value="10">10 min</option>
+            </select></div>
+            <div class="sw"><select id="onlineIncrSelect" class="sel">
+              <option value="0">+0s</option><option value="5">+5s</option><option value="10" selected>+10s</option><option value="30">+30s</option>
+            </select></div>
+            <label class="toggle-wrap">
+              <input type="checkbox" id="onlineTimerToggle" checked>
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              <span style="font-weight:800;font-size:11px">Timer</span>
+            </label>
+          </div>
+          <div style="display:flex;gap:7px;margin-bottom:8px">
+            <input type="password" id="newRoomPasscode" class="fb-field" placeholder="Room passcode (required — needed to delete)" style="flex:1" required>
+            <button type="button" class="btn btn-sm" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);padding:4px 10px;font-size:13px" onclick="togglePwVis('newRoomPasscode',this)" title="Show/hide">👁</button>
+          </div>
+          <button class="btn btn-play" id="createRoomBtn" style="width:100%">🏠 Create Room</button>
+          <div id="createRoomError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:6px;min-height:14px"></div>
         </div>
 
-        <!-- Manual join -->
-        <div id="joinManualPane">
-          <p style="font-size:12px;color:var(--muted);font-weight:700;margin-bottom:8px">Enter the 6-letter code from your host:</p>
+        <!-- Lobby list -->
+        <div class="pc">
+          <div class="ob-title" style="justify-content:space-between">
+            <span>🌐 Available Rooms</span>
+            <button class="btn btn-sm" id="refreshLobbyBtn" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);font-size:11px;padding:4px 10px">↺ Refresh</button>
+          </div>
+          <div id="lobbyList" style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
+            <div class="lobby-empty">Loading rooms…</div>
+          </div>
+        </div>
+
+        <!-- Manual join by code -->
+        <div class="pc">
+          <div class="ob-title">✍️ Join by Code</div>
           <input type="text" id="joinCodeInput" class="room-input" maxlength="6" placeholder="ABCDEF" autocomplete="off" spellcheck="false">
-          <button class="btn btn-play" id="joinRoomBtn" style="width:100%;margin-top:8px">🤝 Join Room</button>
+          <button class="btn btn-play" id="joinRoomBtn" style="width:100%;margin-top:8px">🤝 Join</button>
+          <div id="joinError" style="color:var(--primary-d);font-size:12px;font-weight:700;text-align:center;margin-top:6px;min-height:18px"></div>
         </div>
 
-        <!-- Import invite -->
-        <div id="joinImportPane" style="display:none">
-          <p style="font-size:12px;color:var(--muted);font-weight:700;margin-bottom:8px">Paste the encrypted invite from your host:</p>
-          <textarea id="importBlob" class="fb-textarea" rows="3" placeholder="Paste invite string here…"></textarea>
-          <input type="password" id="importPasscode" class="fb-field" placeholder="Passcode from host" style="margin-top:7px;width:100%">
+        <!-- Import encrypted invite -->
+        <div class="pc">
+          <div class="ob-title">🔐 Import Invite</div>
+          <textarea id="importBlob" class="fb-textarea" rows="2" placeholder="Paste encrypted invite…"></textarea>
+          <input type="password" id="importPasscode" class="fb-field" placeholder="Passcode" style="margin-top:7px;width:100%">
           <button class="btn btn-play" id="importJoinBtn" style="width:100%;margin-top:8px">🔐 Decrypt & Join</button>
         </div>
 
-        <div id="joinError" style="color:var(--primary-d);font-size:12px;font-weight:700;text-align:center;margin-top:6px;min-height:18px"></div>
-      </div>
+        <!-- Manual room deletion by passcode -->
+        <div class="pc">
+          <div class="ob-title">🗑 Delete Room</div>
+          <p style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:8px">Delete any room if you know its passcode.</p>
+          <input type="text" id="deleteRoomCode" class="room-input" maxlength="6" placeholder="ABCDEF" style="margin-bottom:7px" autocomplete="off" spellcheck="false">
+          <input type="password" id="deleteRoomPasscode" class="fb-field" placeholder="Room passcode" style="margin-bottom:8px;width:100%">
+          <button class="btn btn-sm" id="deleteRoomManualBtn" style="width:100%;background:#fff5f5;border:2.5px solid var(--primary);color:var(--primary-d)">🗑 Delete Room</button>
+          <div id="deleteRoomError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:6px;min-height:14px"></div>
+        </div>
 
-      <!-- ⑤ ACTIVE GAME STATUS -->
+      </div><!-- /fbLobby -->
+
+      <!-- ③ ACTIVE GAME STATUS -->
       <div class="pc" id="fbActiveSection" style="display:none">
-        <div class="ob-title">🌐 Online Game Live</div>
+        <div class="ob-title">🌐 Online Game</div>
         <div class="online-status-bar">
           <span id="myColorChip" class="color-chip white">♔ You: White</span>
-          <span id="opponentConnBadge" class="conn-badge waiting"><span class="conn-dot"></span> Connecting…</span>
+          <span id="opponentConnBadge" class="conn-badge waiting"><span class="conn-dot"></span> Waiting…</span>
         </div>
         <div style="margin-top:8px;font-size:12px;font-weight:700;color:var(--muted);text-align:center">
-          Room: <strong id="activeRoomCode" style="color:var(--primary);letter-spacing:2px">------</strong>
+          Room: <strong id="activeRoomCode" style="color:var(--primary);letter-spacing:2px;cursor:pointer" onclick="copyCode(roomCode)" title="Tap to copy">------</strong> 📋
         </div>
-        <div style="display:flex;gap:7px;margin-top:10px">
-          <button class="btn btn-undo btn-sm" id="leaveRoomBtn" style="flex:1">🚪 Leave Game</button>
-          <button class="btn btn-sm" id="deleteRoomActiveBtn" style="flex:1;background:#fff5f5;border:2px solid var(--primary);color:var(--primary-d);display:none">🗑 Delete Room</button>
+        <!-- Passcode reveal for host -->
+        <div id="activePasscodeRow" style="display:none;margin-top:6px;background:var(--bl);border:2px solid var(--border);border-radius:12px;padding:8px 12px;font-size:12px;font-weight:700;text-align:center">
+          🔑 Passcode: <span id="activePasscodeSpan" style="color:var(--primary);letter-spacing:2px">••••••</span>
+          <button class="btn btn-sm" style="margin-left:8px;background:var(--card);border:2px solid var(--border);color:var(--muted);padding:2px 8px;font-size:11px" onclick="togglePwVis('activePasscodeSpan',this,true)">👁 Show</button>
         </div>
+        <!-- Share invite from active game -->
+        <div style="margin-top:8px">
+          <button class="btn btn-hint btn-sm" style="width:100%" onclick="toggleSharePanel('active')">🔐 Share Invite</button>
+          <div id="sharePanel-active" style="display:none;margin-top:8px;background:var(--bl);border:2px solid var(--border);border-radius:12px;padding:10px">
+            <div style="display:flex;gap:6px;margin-bottom:6px">
+              <input type="password" id="passcode-active" class="fb-field" placeholder="Passcode (min 4 chars)" style="flex:1">
+              <button class="btn btn-hint btn-sm" onclick="generateInviteForRoom(roomCode, 'active')">Generate</button>
+            </div>
+            <div id="inviteResult-active" style="display:none">
+              <textarea id="inviteBlob-active" class="fb-textarea" rows="2" readonly style="font-size:10px;font-family:monospace"></textarea>
+              <button class="btn btn-sm" onclick="copyInvite('active')" style="width:100%;margin-top:5px;background:var(--secondary);color:#fff;border:none">📋 Copy Invite</button>
+            </div>
+            <div id="inviteError-active" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:4px;min-height:14px"></div>
+          </div>
+        </div>
+        <button class="btn btn-undo btn-sm" id="leaveRoomBtn" style="width:100%;margin-top:10px">🚪 Leave Room</button>
       </div>
 
-    </div>
+    </div><!-- /panelOnline -->
 
     <!-- ── BADGES PANEL ── -->
     <div id="panelBadges" class="panel-view">
@@ -1004,483 +1026,347 @@ let baseMinutes=5,whiteTimeMs=300000,blackTimeMs=300000;
 let activeClock=null,clockInterval=null,firstMoveMade=false;
 let selectedSquare=null,legalMovesForSelection=[];
 let pendingPromo=null;
-
 // ══════════════════════════════════════════════
-// FIREBASE — UI-DRIVEN CONFIG + CRYPTO
+// FIREBASE — FULL ROOM SYSTEM v4
 // ══════════════════════════════════════════════
-const FB_STORAGE_KEY = 'kchess-fb-config';
+const FB_STORAGE_KEY   = 'kchess-fb-config';
+const SESSION_KEY      = 'kchess-session';
+const GAME_STATE_KEY   = 'kchess-gamestate';
 
 let fbApp=null, fbFs=null, fbReady=false;
 let onlineMode=false;
 let myColor='w';
 let roomCode='';
-let roomRef=null;           // Firestore doc: rooms/{code}
+let roomRef=null;
 let fbMovesSeen=new Set();
 let opponentOnline=false;
+let mySessionId='';
 let savedFbConfig=null;
-// Firestore unsubscribe handles
-let unsubRoom=null, unsubMoves=null;
+let unsubRoom=null, unsubMoves=null, unsubLobby=null;
 
-// ── Crypto helpers (AES-GCM via Web Crypto) ──
-async function deriveKey(passcode, salt){
+function getOrCreateSessionId(){
+  let sid=sessionStorage.getItem('kchess-sid');
+  if(!sid){sid='s'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);sessionStorage.setItem('kchess-sid',sid);}
+  return sid;
+}
+
+async function sha256(str){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function deriveKey(passcode,salt){
   const enc=new TextEncoder();
   const base=await crypto.subtle.importKey('raw',enc.encode(passcode),{name:'PBKDF2'},false,['deriveKey']);
-  return crypto.subtle.deriveKey(
-    {name:'PBKDF2',salt,iterations:100000,hash:'SHA-256'},
-    base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']
-  );
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:100000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
 }
-async function encryptData(obj, passcode){
-  const salt=crypto.getRandomValues(new Uint8Array(16));
-  const iv=crypto.getRandomValues(new Uint8Array(12));
+async function encryptData(obj,passcode){
+  const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
   const key=await deriveKey(passcode,salt);
-  const enc=new TextEncoder();
-  const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,enc.encode(JSON.stringify(obj)));
-  // Pack: salt(16) + iv(12) + ciphertext → base64
+  const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(obj)));
   const buf=new Uint8Array(16+12+ct.byteLength);
   buf.set(salt,0);buf.set(iv,16);buf.set(new Uint8Array(ct),28);
   return btoa(String.fromCharCode(...buf));
 }
-async function decryptData(b64, passcode){
+async function decryptData(b64,passcode){
   const buf=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
-  const salt=buf.slice(0,16),iv=buf.slice(16,28),ct=buf.slice(28);
-  const key=await deriveKey(passcode,salt);
-  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,ct);
+  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:buf.slice(16,28)},await deriveKey(passcode,buf.slice(0,16)),buf.slice(28));
   return JSON.parse(new TextDecoder().decode(pt));
 }
 
-// ── Config persistence ──
-function loadStoredConfig(){
-  try{
-    const raw=localStorage.getItem(FB_STORAGE_KEY);
-    if(raw) return JSON.parse(raw);
-  }catch(e){}
-  return null;
-}
-function saveStoredConfig(cfg){
-  try{localStorage.setItem(FB_STORAGE_KEY,JSON.stringify(cfg));}catch(e){}
-}
-function clearStoredConfig(){
-  try{localStorage.removeItem(FB_STORAGE_KEY);}catch(e){}
-  savedFbConfig=null;fbReady=false;fbApp=null;fbFs=null;
-}
+function loadStoredConfig(){try{const r=localStorage.getItem(FB_STORAGE_KEY);return r?JSON.parse(r):null;}catch(e){return null;}}
+function saveStoredConfig(cfg){try{localStorage.setItem(FB_STORAGE_KEY,JSON.stringify(cfg));}catch(e){}}
+function clearStoredConfig(){try{localStorage.removeItem(FB_STORAGE_KEY);}catch(e){}savedFbConfig=null;fbReady=false;fbApp=null;fbFs=null;}
 
-// ── Firebase initialise from config object ──
 function fbInitFromConfig(cfg){
-  if(fbReady) return true;
+  if(fbReady)return true;
   try{
-    if(firebase.apps.length===0) fbApp=firebase.initializeApp(cfg);
+    if(firebase.apps.length===0)fbApp=firebase.initializeApp(cfg);
     else fbApp=firebase.apps[0];
     fbFs=firebase.firestore();
-    fbReady=true;
-    savedFbConfig=cfg;
+    fbReady=true;savedFbConfig=cfg;
     return true;
-  }catch(e){
-    console.error('Firebase init failed:',e);
-    return false;
-  }
-}
-
-// ── Config UI ──
-function renderConfigUI(){
-  const cfg=loadStoredConfig();
-  const form=document.getElementById('fbConfigForm');
-  const summary=document.getElementById('fbConfigSummary');
-  const badge=document.getElementById('fbStatusBadge');
-  const createSec=document.getElementById('fbCreateSection');
-  const joinSec=document.getElementById('fbJoinSection');
-
-  if(cfg && cfg.apiKey && cfg.projectId){
-    // Already configured
-    form.style.display='none';
-    summary.style.display='block';
-    document.getElementById('fbStatusBadge').className='conn-badge connected';
-    document.getElementById('fbStatusBadge').innerHTML='<span class="conn-dot"></span> Configured';
-    createSec.style.display='block';
-    joinSec.style.display='block';
-    // Auto-init Firebase
-    fbInitFromConfig(cfg);
-  }else{
-    form.style.display='block';
-    summary.style.display='none';
-    badge.className='conn-badge disconnected';
-    badge.innerHTML='<span class="conn-dot"></span> Not connected';
-    createSec.style.display='none';
-    joinSec.style.display='none';
-  }
+  }catch(e){console.error('Firebase init failed:',e);return false;}
 }
 
 function saveAndConnect(){
   const errEl=document.getElementById('fbConfigError');
   errEl.textContent='';
-
-  // Try parsing pasted JSON first
   let cfg={};
-  const paste=document.getElementById('fbConfigPaste').value.trim();
-  if(paste){
-    // Strip firebase.initializeApp(...) wrapper if pasted from Firebase docs
-    let raw = paste.trim();
-    const wrapMatch = raw.match(/initializeApp\s*\((\{[\s\S]*\})\)/);
-    if(wrapMatch) raw = wrapMatch[1];
-    // Try strict JSON first
-    try{
-      cfg = JSON.parse(raw);
-    }catch(e1){
-      // Convert JS object literal → JSON:
-      // 1. Quote unquoted keys  2. Remove trailing commas
+  let raw=document.getElementById('fbConfigPaste').value.trim();
+  if(raw){
+    const wrapMatch=raw.match(/initializeApp\s*\((\{[\s\S]*\})\)/);
+    if(wrapMatch)raw=wrapMatch[1];
+    try{ cfg=JSON.parse(raw); }catch(e1){
       try{
-        const jsonified = raw
-          .replace(/\/\/.*$/gm,'')                          // strip line comments
-          .replace(/,\s*([\]}])/g,'$1')                     // trailing commas
-          .replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g,'$1"$2":'); // quote keys
-        cfg = JSON.parse(jsonified);
+        const j=raw.replace(/\/\/.*$/gm,'').replace(/,\s*([\]}])/g,'$1').replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g,'$1"$2":');
+        cfg=JSON.parse(j);
       }catch(e2){
-        errEl.textContent='⚠️ Could not parse config. Try pasting the JSON from Firebase Console (Project Settings → SDK setup).';
+        errEl.textContent='⚠️ Could not parse config. Try pasting the JSON from Firebase Console.';
         return;
       }
     }
   }
-  // Manual field overrides (take precedence over paste)
   ['apiKey','projectId','authDomain','appId','messagingSenderId','storageBucket'].forEach(k=>{
-    const id='fb'+k.charAt(0).toUpperCase()+k.slice(1);
-    const el=document.getElementById(id);
-    const v=el?.value.trim();
-    if(v) cfg[k]=v;
+    const el=document.getElementById('fb'+k.charAt(0).toUpperCase()+k.slice(1));
+    const v=el?.value.trim();if(v)cfg[k]=v;
   });
-
-  if(!cfg.apiKey){errEl.textContent='⚠️ apiKey is missing — check your config';return}
-  if(!cfg.projectId){errEl.textContent='⚠️ projectId is missing — check your config';return}
-
-  // Firestore doesn't need databaseURL
+  if(!cfg.apiKey){errEl.textContent='⚠️ apiKey is missing';return;}
+  if(!cfg.projectId){errEl.textContent='⚠️ projectId is missing';return;}
   delete cfg.databaseURL;
-
   saveStoredConfig(cfg);
-  const ok = fbInitFromConfig(cfg);
+  const ok=fbInitFromConfig(cfg);
   if(ok){
     errEl.textContent='';
     renderConfigUI();
   }else{
     clearStoredConfig();
-    errEl.textContent='❌ Firebase rejected the config. Double-check apiKey and projectId.';
+    errEl.textContent='❌ Firebase rejected the config — double-check apiKey and projectId.';
     renderConfigUI();
   }
 }
 
-// ── Room code helpers ──
-function genCode(){
-  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let c='';for(let i=0;i<6;i++)c+=chars[Math.floor(Math.random()*chars.length)];
-  return c;
-}
-// (copyRoomCode removed — rooms now copied via copyCode(code) inline buttons)
-
-// ── Encrypted invite: export ──
-// (generateInvite replaced by per-room generateInviteForRoom — see renderHostedRooms)
-
-async function importAndJoin(){
-  const errEl=document.getElementById('joinError');
-  errEl.textContent='';
-  const blob=document.getElementById('importBlob').value.trim();
-  const passcode=document.getElementById('importPasscode').value;
-  if(!blob){errEl.textContent='⚠️ Paste the invite string first';return}
-  if(!passcode){errEl.textContent='⚠️ Enter the passcode from the host';return}
-
-  let payload;
-  try{
-    payload=await decryptData(blob,passcode);
-  }catch(e){
-    errEl.textContent='❌ Wrong passcode or corrupted invite';return;
+function renderConfigUI(){
+  const cfg=loadStoredConfig();
+  const form=document.getElementById('fbConfigForm');
+  const summary=document.getElementById('fbConfigSummary');
+  const badge=document.getElementById('fbStatusBadge');
+  const lobby=document.getElementById('fbLobby');
+  if(cfg&&cfg.apiKey&&cfg.projectId){
+    form.style.display='none';summary.style.display='block';
+    badge.className='conn-badge connected';
+    badge.innerHTML='<span class="conn-dot"></span> Configured';
+    lobby.style.display='flex';
+    fbInitFromConfig(cfg);
+    startLobbyListener();
+  }else{
+    form.style.display='block';summary.style.display='none';
+    badge.className='conn-badge disconnected';
+    badge.innerHTML='<span class="conn-dot"></span> Not connected';
+    if(lobby)lobby.style.display='none';
   }
-
-  const {config:cfg, roomCode:code}=payload;
-  if(!cfg||!code){errEl.textContent='❌ Invalid invite data';return}
-
-  // Save config + init Firebase
-  saveStoredConfig(cfg);
-  if(!fbInitFromConfig(cfg)){errEl.textContent='❌ Could not connect with imported config';return}
-  renderConfigUI();
-
-  // Auto-join the room
-  document.getElementById('joinCodeInput').value=code;
-  await joinRoom();
 }
 
-// ── Hosted rooms registry ──
-let hostedRooms = {}; // code → {roomRef, unsubRoom}
+function startLobbyListener(){
+  if(!fbReady||unsubLobby)return;
+  const THREE_DAYS=3*24*60*60*1000;
+  // Simple collection snapshot — no composite index needed
+  unsubLobby=fbFs.collection('lobby')
+    .onSnapshot(snap=>renderLobby(snap,THREE_DAYS),err=>{
+      console.warn('Lobby listener error:',err);
+      document.getElementById('lobbyList').innerHTML=
+        '<div class="lobby-empty" style="color:var(--primary-d)">⚠️ Could not load rooms. Check Firestore rules.</div>';
+    });
+}
 
-// ── Create Room ──
+function renderLobby(snap,THREE_DAYS=3*24*60*60*1000){
+  const list=document.getElementById('lobbyList');
+  if(!list)return;
+  list.innerHTML='';
+  const now=Date.now();
+  const rooms=[];
+  snap.forEach(doc=>{
+    const r=doc.data(),code=doc.id;
+    // Filter out deleted/finished
+    if(r.status==='deleted'||r.status==='finished')return;
+    // Filter out expired (empty for 3+ days)
+    if(r.emptyAt&&(now-r.emptyAt)>THREE_DAYS)return;
+    rooms.push({code,data:r});
+  });
+  // Sort newest first
+  rooms.sort((a,b)=>(b.data.createdAt||0)-(a.data.createdAt||0));
+  if(rooms.length===0){
+    list.innerHTML='<div class="lobby-empty">No open rooms — create one!</div>';return;
+  }
+  rooms.forEach(({code,data:r})=>{
+    const playerCount=Object.keys(r.players||{}).length;
+    const isFull=playerCount>=2;
+    const isPlaying=r.status==='playing';
+    const myRoom=Object.keys(r.players||{}).includes(mySessionId);
+    const isEmpty=playerCount===0;
+    const cfg=r.config||{};
+    const timeLabel=cfg.timeMin?(cfg.timeMin+'min'+(cfg.incrSec?'+'+cfg.incrSec+'s':'')):'?';
+    // Expiry countdown if empty
+    let expiryNote='';
+    if(isEmpty&&r.emptyAt){
+      const daysLeft=Math.max(0,Math.ceil((THREE_DAYS-(now-r.emptyAt))/(24*60*60*1000)));
+      expiryNote=`<span style="color:var(--primary-d);font-size:10px"> · expires in ${daysLeft}d</span>`;
+    }
+    const card=document.createElement('div');
+    card.className='lobby-room-card';
+    card.innerHTML=`
+      <div class="lobby-room-row">
+        <div>
+          <div class="lobby-room-code" onclick="copyCode('${code}')" style="cursor:pointer" title="Tap to copy">${code} <span style="font-size:11px">📋</span></div>
+          <div class="lobby-room-meta">⏱ ${timeLabel} · ${playerCount}/2 · ${isEmpty?'Empty':isPlaying?'In game':'Waiting'}${expiryNote}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+          <span class="lobby-badge ${isFull?'full':isPlaying?'playing':'waiting'}">${isFull?'Full':isPlaying?'Playing':'Open'}</span>
+          ${myRoom
+            ?`<button class="btn btn-play btn-sm" onclick="rejoinRoom('${code}')">↩ Rejoin</button>`
+            :(!isFull
+              ?`<button class="btn btn-play btn-sm" onclick="joinRoomByCode('${code}')">Join</button>`
+              :`<span style="font-size:11px;color:var(--muted);font-weight:700">Full</span>`)}
+        </div>
+      </div>`;
+    list.appendChild(card);
+  });
+}
+
+function saveSession(){try{sessionStorage.setItem(SESSION_KEY,JSON.stringify({roomCode,myColor,mySessionId}));}catch(e){}}
+function clearSession(){try{sessionStorage.removeItem(SESSION_KEY);sessionStorage.removeItem(GAME_STATE_KEY);}catch(e){}}
+function loadSession(){try{const r=sessionStorage.getItem(SESSION_KEY);return r?JSON.parse(r):null;}catch(e){return null;}}
+
+function saveGameStateLocal(){
+  if(!onlineMode)return;
+  try{
+    const gs={board,turn,castlingRights,enPassantTarget,halfmoveClock,fullmoveNumber,
+      lastMove,whiteTimeMs,blackTimeMs,firstMoveMade,
+      moveHistory:moveHistory.map(m=>({fromR:m.fromR,fromC:m.fromC,toR:m.toR,toC:m.toC,
+        piece:m.piece,capture:m.capture,enPassant:m.enPassant,doublePawn:m.doublePawn,
+        promotion:m.promotion,promotionPiece:m.promotionPiece,castle:m.castle,san:m.san}))};
+    sessionStorage.setItem(GAME_STATE_KEY,JSON.stringify(gs));
+  }catch(e){}
+}
+function loadGameStateLocal(){try{const r=sessionStorage.getItem(GAME_STATE_KEY);return r?JSON.parse(r):null;}catch(e){return null;}}
+
+function serializeGameState(){
+  return{board,turn,castlingRights,enPassantTarget:enPassantTarget||null,
+    halfmoveClock,fullmoveNumber,lastMove:lastMove||null,
+    whiteTimeMs,blackTimeMs,firstMoveMade,moveCount:moveHistory.length};
+}
+
 async function createRoom(){
-  if(!fbReady){renderConfigUI();return}
+  if(!fbReady){renderConfigUI();return;}
+  const errEl=document.getElementById('createRoomError');
+  errEl.textContent='';
+  mySessionId=getOrCreateSessionId();
+  const passcodeRaw=document.getElementById('newRoomPasscode').value.trim();
+  if(!passcodeRaw){errEl.textContent='⚠️ A passcode is required to create a room.';return;}
+  if(passcodeRaw.length<4){errEl.textContent='⚠️ Passcode must be at least 4 characters.';return;}
+  errEl.textContent='Creating…';
   const code=genCode();
   const timerOn=document.getElementById('onlineTimerToggle').checked;
   const tMin=+document.getElementById('onlineTimeSelect').value;
   const incr=+document.getElementById('onlineIncrSelect').value;
-
-  const ref=fbFs.collection('rooms').doc(code);
-  await ref.set({
-    config:{timeMin:tMin, incrSec:incr, timerEnabled:timerOn, createdAt:Date.now()},
-    status:'waiting',
-    players:{white:{online:true}, black:{online:false}},
-    result:null
-  });
-
-  // Listen for guest joining this specific room
-  const unsub = ref.onSnapshot(snap=>{
-    const data=snap.data();
-    if(!data) return;
-    if(data.status==='playing'){
-      // Guest joined — activate this room
-      activateHostedRoom(code, ref, unsub);
-    }
-  });
-
-  hostedRooms[code] = {ref, unsub};
-
-  // Track presence for this room
-  window.addEventListener('beforeunload', ()=>{
-    ref.update({'players.white.online':false}).catch(()=>{});
-  });
-
-  // Show the new room in the waiting list
-  addRoomToWaitingList(code);
-}
-
-function addRoomToWaitingList(code){
-  document.getElementById('fbCreateSection').style.display='none';
-  document.getElementById('fbJoinSection').style.display='none';
-  document.getElementById('fbWaitingSection').style.display='block';
-
-  // Build or refresh the hosted rooms list
-  renderHostedRooms();
-}
-
-function renderHostedRooms(){
-  const list = document.getElementById('hostedRoomsList');
-  list.innerHTML = '';
-  const codes = Object.keys(hostedRooms);
-  if(codes.length === 0){
-    document.getElementById('fbWaitingSection').style.display='none';
-    document.getElementById('fbCreateSection').style.display='block';
-    document.getElementById('fbJoinSection').style.display='block';
-    return;
-  }
-  codes.forEach(code=>{
-    const wrap = document.createElement('div');
-    wrap.style.cssText='border:2px solid var(--border);border-radius:16px;overflow:hidden';
-
-    // Room header row
-    const row = document.createElement('div');
-    row.className = 'hosted-room-row';
-    row.innerHTML = `
-      <div>
-        <div class="room-code-pill" onclick="copyCode('${code}')" title="Tap to copy code">${code} <span style="font-size:10px">📋</span></div>
-        <div style="font-size:11px;color:var(--muted);font-weight:700;margin-top:3px">⏳ Waiting for opponent…</div>
-      </div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <button class="btn btn-hint btn-sm" onclick="toggleSharePanel('${code}')">🔐 Share</button>
-        <button class="btn btn-sm" style="background:#fff5f5;border:2px solid var(--primary);color:var(--primary-d);font-size:11px;padding:4px 10px"
-          onclick="deleteHostedRoom('${code}')">🗑</button>
-      </div>
-    `;
-
-    // Per-room inline share panel (hidden by default)
-    const sharePanel = document.createElement('div');
-    sharePanel.id = 'sharePanel-'+code;
-    sharePanel.style.cssText='display:none;padding:12px 14px;background:var(--bl);border-top:2px solid var(--border)';
-    sharePanel.innerHTML = `
-      <div style="font-family:var(--font-bubble,Bubblegum Sans),cursive;font-size:13px;color:var(--primary);margin-bottom:6px">🔐 Encrypted Invite — Room ${code}</div>
-      <p style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:8px">Set a passcode. Your friend uses it to decrypt the invite and auto-join.</p>
-      <div style="display:flex;gap:6px;margin-bottom:7px">
-        <input type="password" id="passcode-${code}" class="fb-field" placeholder="Passcode (min 4 chars)" style="flex:1">
-        <button class="btn btn-hint btn-sm" onclick="generateInviteForRoom('${code}')">Generate</button>
-      </div>
-      <div id="inviteResult-${code}" style="display:none">
-        <textarea id="inviteBlob-${code}" class="fb-textarea" rows="3" readonly style="font-size:10px;font-family:monospace"></textarea>
-        <button class="btn btn-sm" onclick="copyInvite('${code}')" style="width:100%;margin-top:6px;background:var(--secondary);color:#fff;border:none">📋 Copy Invite</button>
-      </div>
-      <div id="inviteError-${code}" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:4px;min-height:14px"></div>
-    `;
-
-    wrap.appendChild(row);
-    wrap.appendChild(sharePanel);
-    list.appendChild(wrap);
-  });
-}
-
-function toggleSharePanel(code){
-  const panel = document.getElementById('sharePanel-'+code);
-  if(!panel) return;
-  panel.style.display = panel.style.display==='none' ? 'block' : 'none';
-}
-
-async function generateInviteForRoom(code){
-  const errEl = document.getElementById('inviteError-'+code);
-  errEl.textContent = '';
-  const passcode = document.getElementById('passcode-'+code).value;
-  if(passcode.length < 4){ errEl.textContent='⚠️ Passcode must be at least 4 characters'; return; }
-  const cfg = loadStoredConfig();
-  if(!cfg){ errEl.textContent='⚠️ No Firebase config saved'; return; }
-  const payload = {config:cfg, roomCode:code, version:1};
+  const passcodeHash=await sha256(passcodeRaw);
   try{
-    const blob = await encryptData(payload, passcode);
-    document.getElementById('inviteBlob-'+code).value = blob;
-    document.getElementById('inviteResult-'+code).style.display = 'block';
-  }catch(e){
-    errEl.textContent = '❌ Encryption failed: '+e.message;
-  }
+    await fbFs.collection('lobby').doc(code).set({
+      config:{timeMin:tMin,incrSec:incr,timerEnabled:timerOn,createdAt:Date.now()},
+      status:'waiting',
+      players:{[mySessionId]:{color:'w',online:true,joinedAt:Date.now()}},
+      playerCount:1,passcodeHash,gameState:null,result:null,
+      createdAt:Date.now(),emptyAt:null
+    });
+  }catch(e){errEl.textContent='❌ '+e.message;return;}
+  errEl.textContent='';
+  // Store plaintext passcode for this session (so creator can see it)
+  try{sessionStorage.setItem('kchess-room-passcode',passcodeRaw);}catch(e){}
+  document.getElementById('newRoomPasscode').value='';
+  roomCode=code;myColor='w';roomRef=fbFs.collection('lobby').doc(code);
+  saveSession();
+  onOnlineGameStart(false);
 }
 
-function copyInvite(code){
-  const blob = document.getElementById('inviteBlob-'+code)?.value;
-  if(!blob) return;
-  navigator.clipboard?.writeText(blob).then(()=>{
-    const btn = document.querySelector(`#sharePanel-${code} .btn[onclick="copyInvite('${code}')"]`);
-    if(btn){ btn.textContent='✅ Copied!'; setTimeout(()=>btn.textContent='📋 Copy Invite',2000); }
-    showToast('📋 Invite copied!', 'Room '+code);
-  });
-}
+async function joinRoomByCode(code){document.getElementById('joinCodeInput').value=code;await joinRoom();}
 
-function copyCode(code){
-  navigator.clipboard?.writeText(code).then(()=>{
-    showToast('📋 Room code copied!', code);
-  });
-}
-
-function showToast(text, sub){
-  document.getElementById('toastEmoji').textContent='📋';
-  document.getElementById('toastText').textContent=text;
-  document.getElementById('toastSub').textContent=sub||'';
-  const t=document.getElementById('badgeToast');
-  t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2500);
-}
-
-async function deleteHostedRoom(code){
-  const entry = hostedRooms[code];
-  if(!entry) return;
-  if(!confirm(`Delete room ${code}?`)) return;
-  entry.unsub();
-  await entry.ref.update({status:'deleted'}).catch(()=>{});
-  await entry.ref.delete().catch(()=>{});
-  delete hostedRooms[code];
-  renderHostedRooms();
-}
-
-function activateHostedRoom(code, ref, unsub){
-  // Stop listening on the pre-game snapshot for this room
-  unsub();
-  delete hostedRooms[code];
-
-  // Clean up other waiting rooms
-  Object.keys(hostedRooms).forEach(c=>{
-    hostedRooms[c].unsub();
-    hostedRooms[c].ref.delete().catch(()=>{});
-  });
-  hostedRooms = {};
-
-  // Set as the active room
-  roomCode = code;
-  myColor = 'w';
-  roomRef = ref;
-
-  onOnlineGameStart();
-}
-
-// ── Join Room ──
 async function joinRoom(){
-  if(!fbReady){renderConfigUI();return}
+  if(!fbReady){renderConfigUI();return;}
   const code=document.getElementById('joinCodeInput').value.trim().toUpperCase();
   const errEl=document.getElementById('joinError');
   errEl.textContent='';
-  if(code.length!==6){errEl.textContent='⚠️ Enter a 6-character room code!';return}
-
-  // Prevent host joining their own room
-  if(myColor==='w' && code===roomCode){
-    errEl.textContent='❌ You created this room! Share the code with your opponent to join.';
-    return;
+  if(code.length!==6){errEl.textContent='⚠️ Enter a 6-letter code!';return;}
+  mySessionId=getOrCreateSessionId();
+  const sess=loadSession();
+  if(sess&&sess.roomCode===code&&sess.mySessionId===mySessionId){
+    errEl.textContent='⚠️ You are already in this room — switch to Play tab!';return;
   }
-
   let snap;
-  try{ snap=await fbFs.collection('rooms').doc(code).get(); }
-  catch(e){ errEl.textContent='❌ Connection error: '+e.message; return; }
-
-  if(!snap.exists){errEl.textContent='❌ Room not found. Check the code!';return}
+  try{snap=await fbFs.collection('lobby').doc(code).get();}
+  catch(e){errEl.textContent='❌ Connection error: '+e.message;return;}
+  if(!snap.exists){errEl.textContent='❌ Room not found.';return;}
   const room=snap.data();
-  if(room.status==='deleted'){errEl.textContent='❌ That room was deleted by the host.';return}
-  if(room.status!=='waiting'){errEl.textContent='❌ That game already started or finished.';return}
-
-  // Extra check: if white.online is true and the room was just created, likely same device
-  if(room.players?.white?.online && !onlineMode){
-    // Ask user to confirm they are not the host
-    const confirm_result = confirm('Are you sure you are the guest (Black)? The host created this room and is waiting as White.');
-    if(!confirm_result) return;
+  if(room.status==='deleted'||room.status==='finished'){errEl.textContent='❌ Room is no longer active.';return;}
+  // Check 3-day expiry
+  const THREE_DAYS=3*24*60*60*1000;
+  if(room.emptyAt&&(Date.now()-room.emptyAt)>THREE_DAYS){
+    // Lazy-delete expired room
+    await fbFs.collection('lobby').doc(code).delete().catch(()=>{});
+    errEl.textContent='❌ This room expired and has been removed.';return;
   }
-
-  roomCode=code;
-  myColor='b';
-  roomRef=fbFs.collection('rooms').doc(code);
-
-  // Mark guest as joined
-  await roomRef.update({status:'playing','players.black.online':true});
-  window.addEventListener('beforeunload', _markMeOffline);
-
-  onOnlineGameStart();
+  const playerCount=Object.keys(room.players||{}).length;
+  if(playerCount>=2){errEl.textContent='❌ Room is full (2/2 players).';return;}
+  roomCode=code;myColor='b';roomRef=fbFs.collection('lobby').doc(code);
+  await roomRef.update({
+    [`players.${mySessionId}`]:{color:'b',online:true,joinedAt:Date.now()},
+    playerCount:2,status:'playing',emptyAt:null
+  });
+  saveSession();
+  onOnlineGameStart(false);
 }
 
-// ── Presence helper ──
-function _markMeOffline(){
-  if(!roomRef)return;
-  const field='players.'+(myColor==='w'?'white':'black')+'.online';
-  roomRef.update({[field]:false}).catch(()=>{});
+async function rejoinRoom(code){
+  if(!fbReady){renderConfigUI();return;}
+  mySessionId=getOrCreateSessionId();
+  let snap;
+  try{snap=await fbFs.collection('lobby').doc(code).get();}catch(e){return;}
+  if(!snap.exists)return;
+  const room=snap.data();
+  const players=room.players||{};
+  if(!players[mySessionId])return;
+  myColor=players[mySessionId].color;
+  roomCode=code;roomRef=fbFs.collection('lobby').doc(code);
+  await roomRef.update({[`players.${mySessionId}.online`]:true});
+  saveSession();
+  onOnlineGameStart(true);
 }
 
-// ── Room deleted by host ──
-function onRoomDeleted(){
-  gameOver=true;stopClock();
-  showAlertOverlay('🗑️','Room Deleted','The host deleted this room. Thanks for playing!');
-  leaveGame(true);
-}
-
-// ── Game Start ──
-async function onOnlineGameStart(){
-  // Detach the pre-game status listener
+async function onOnlineGameStart(isRestore){
   if(unsubRoom){unsubRoom();unsubRoom=null;}
+  if(unsubLobby){unsubLobby();unsubLobby=null;}
   onlineMode=true;
-
   const snap=await roomRef.get();
   const room=snap.data();if(!room)return;
   const cfg=room.config||{};
-
   document.getElementById('timerToggle').checked=cfg.timerEnabled!==false;
   document.getElementById('timeSelect').value=String(cfg.timeMin||5);
   document.getElementById('incrSelect').value=String(cfg.incrSec||10);
   applyTimerToggle();
   switchView('play');
-  startNewGame(true);
+  if(isRestore){
+    const ls=loadGameStateLocal();
+    if(ls)restoreGameStateLocal(ls);
+    else startNewGame(true);
+  }else{
+    startNewGame(true);
+  }
   showActiveOnlineUI();
-  if(myColor==='b') document.querySelector('.board-col').classList.add('board-flipped');
+  if(myColor==='b')document.querySelector('.board-col').classList.add('board-flipped');
   else document.querySelector('.board-col').classList.remove('board-flipped');
 
-  // Single onSnapshot on the room doc for: status (delete), players (presence), result
   unsubRoom=roomRef.onSnapshot(snap=>{
     const data=snap.data();if(!data)return;
-    // Opponent presence
-    const oppKey=myColor==='w'?'black':'white';
+    const oppEntry=Object.entries(data.players||{}).find(([sid])=>sid!==mySessionId);
     const wasOnline=opponentOnline;
-    opponentOnline=!!(data.players&&data.players[oppKey]&&data.players[oppKey].online);
+    opponentOnline=!!(oppEntry&&oppEntry[1].online);
     if(opponentOnline!==wasOnline)updateOpponentBadge();
-    // Room deleted by host
-    if(data.status==='deleted'&&onlineMode){onRoomDeleted();return;}
-    // Game result pushed by opponent
-    if(data.result&&!gameOver){
-      gameOver=true;stopClock();
-      showWinOverlay(data.result.trophy,data.result.title,data.result.sub);
-      updateBanner();
-    }
+    if(data.status==='deleted'&&onlineMode){showAlertOverlay('🗑️','Room Deleted','This room was deleted.');detachAndReset();return;}
+    if(data.result&&!gameOver){gameOver=true;stopClock();showWinOverlay(data.result.trophy,data.result.title,data.result.sub);updateBanner();}
   });
 
-  // Listen for new moves in subcollection, ordered by timestamp
   fbMovesSeen=new Set();
+  // Fetch all existing moves
+  let existingMoves=[];
+  try{
+    const movSnap=await roomRef.collection('moves').orderBy('ts').get();
+    movSnap.forEach(d=>{existingMoves.push({id:d.id,...d.data()});fbMovesSeen.add(d.id);});
+  }catch(e){console.warn('Could not fetch existing moves:',e);}
+
+  if(!isRestore && existingMoves.length>0){
+    // Replay all existing moves onto the fresh board
+    existingMoves.forEach(mv=>applyRemoteMove(mv, true));
+  }
+
   unsubMoves=roomRef.collection('moves').orderBy('ts').onSnapshot(snap=>{
     snap.docChanges().forEach(change=>{
       if(change.type!=='added')return;
@@ -1488,104 +1374,195 @@ async function onOnlineGameStart(){
       if(fbMovesSeen.has(key))return;
       fbMovesSeen.add(key);
       const mv=change.doc.data();
-      if(mv.color===myColor)return; // echo of our own move
+      if(mv.color===myColor)return;
       applyRemoteMove(mv);
     });
   });
+
+  window.removeEventListener('beforeunload',_markMeOffline);
+  window.addEventListener('beforeunload',_markMeOffline);
+}
+
+function restoreGameStateLocal(gs){
+  board=gs.board;turn=gs.turn;castlingRights=gs.castlingRights;
+  enPassantTarget=gs.enPassantTarget;halfmoveClock=gs.halfmoveClock;fullmoveNumber=gs.fullmoveNumber;
+  lastMove=gs.lastMove;
+  whiteTimeMs=gs.whiteTimeMs!==undefined?gs.whiteTimeMs:baseMinutes*60000;
+  blackTimeMs=gs.blackTimeMs!==undefined?gs.blackTimeMs:baseMinutes*60000;
+  firstMoveMade=gs.firstMoveMade||false;
+  moveHistory=gs.moveHistory||[];
+  stateStack=[];gameOver=false;pendingPromo=null;
+  document.getElementById('blackName').textContent='Opponent 🌐';
+  document.getElementById('undoBtn').style.display='none';
+  document.getElementById('hintBtn').style.display='none';
+  clearSel();renderBoard();renderMoves();
+  if(firstMoveMade)startClock();
+  updateBanner();updateStatus();
 }
 
 function showActiveOnlineUI(){
-  document.getElementById('fbCreateSection').style.display='none';
-  document.getElementById('fbJoinSection').style.display='none';
-  document.getElementById('fbWaitingSection').style.display='none';
+  document.getElementById('fbLobby').style.display='none';
   document.getElementById('fbActiveSection').style.display='block';
   const chip=document.getElementById('myColorChip');
   chip.className='color-chip '+(myColor==='w'?'white':'black');
   chip.textContent=myColor==='w'?'♔ You: White':'♚ You: Black';
   document.getElementById('activeRoomCode').textContent=roomCode;
-  document.getElementById('deleteRoomActiveBtn').style.display=myColor==='w'?'flex':'none';
+  // Show passcode row — read from sessionStorage (available for the creator's session)
+  const storedPw=sessionStorage.getItem('kchess-room-passcode');
+  const pwRow=document.getElementById('activePasscodeRow');
+  if(storedPw){
+    pwRow.style.display='block';
+    document.getElementById('activePasscodeSpan').dataset.pw=storedPw;
+    document.getElementById('activePasscodeSpan').textContent='••••••';
+  }else{
+    pwRow.style.display='none';
+  }
   updateOpponentBadge();
+}
+
+// Toggle password visibility for any input or span
+function togglePwVis(id,btn,isSpan=false){
+  const el=document.getElementById(id);if(!el)return;
+  if(isSpan){
+    const showing=el.textContent!=='••••••';
+    el.textContent=showing?'••••••':el.dataset.pw||'';
+    if(btn)btn.textContent=showing?'👁 Show':'🙈 Hide';
+  }else{
+    const t=el.type==='password'?'text':'password';
+    el.type=t;
+    if(btn)btn.textContent=t==='text'?'🙈':'👁';
+  }
 }
 
 function updateOpponentBadge(){
   const badge=document.getElementById('opponentConnBadge');
-  if(opponentOnline){
-    badge.className='conn-badge connected';
-    badge.innerHTML='<span class="conn-dot"></span> Opponent online';
-  }else{
-    badge.className='conn-badge disconnected';
-    badge.innerHTML='<span class="conn-dot"></span> Opponent offline';
-  }
+  if(opponentOnline){badge.className='conn-badge connected';badge.innerHTML='<span class="conn-dot"></span> Opponent online';}
+  else{badge.className='conn-badge disconnected';badge.innerHTML='<span class="conn-dot"></span> Opponent offline';}
 }
 
-// ── Delete Room (host only) ──
-async function deleteRoom(){
-  if(!roomRef||myColor!=='w')return;
-  if(!confirm('Delete this room? This will end the game for both players.'))return;
-  // Signal deletion to guest, then delete the document
-  await roomRef.update({status:'deleted'});
-  await roomRef.delete();
-  roomRef=null;
-  leaveGame(true);
-}
-
-// ── Cancel while waiting — deletes all hosted rooms ──
-async function cancelRoom(){
-  for(const code of Object.keys(hostedRooms)){
-    hostedRooms[code].unsub();
-    await hostedRooms[code].ref.delete().catch(()=>{});
-  }
-  hostedRooms = {};
-  if(unsubRoom){unsubRoom();unsubRoom=null;}
-  if(roomRef){await roomRef.delete().catch(()=>{});roomRef=null;}
-  window.removeEventListener('beforeunload',_markMeOffline);
-  resetOnlineUI();
-}
-
-// ── Leave Game ──
-async function leaveGame(skipConfirm=false){
-  if(!skipConfirm&&onlineMode){
-    if(!confirm('Leave this game?'))return;
-  }
-  // Clean up any stale waiting rooms
-  for(const code of Object.keys(hostedRooms)){
-    hostedRooms[code].unsub();
-    hostedRooms[code].ref.delete().catch(()=>{});
-  }
-  hostedRooms = {};
-  // Detach active game listeners
-  if(unsubRoom){unsubRoom();unsubRoom=null;}
-  if(unsubMoves){unsubMoves();unsubMoves=null;}
-  if(roomRef) _markMeOffline();
-  roomRef=null;
-  window.removeEventListener('beforeunload',_markMeOffline);
-  onlineMode=false;roomCode='';myColor='w';fbMovesSeen=new Set();
-  document.querySelector('.board-col').classList.remove('board-flipped');
-  resetOnlineUI();
+async function leaveRoom(){
+  if(onlineMode&&!confirm('Leave this room?'))return;
+  _markMeOffline();
+  await _decrementAndMaybeDelete();
+  detachAndReset();
   startNewGame();
 }
 
-function resetOnlineUI(){
-  const cfg=loadStoredConfig();
-  document.getElementById('fbCreateSection').style.display=cfg?'block':'none';
-  document.getElementById('fbJoinSection').style.display=cfg?'block':'none';
-  document.getElementById('fbWaitingSection').style.display='none';
-  document.getElementById('fbActiveSection').style.display='none';
-  document.getElementById('joinCodeInput').value='';
-  document.getElementById('joinError').textContent='';
+async function _decrementAndMaybeDelete(){
+  if(!roomRef||!mySessionId)return;
+  try{
+    const snap=await roomRef.get();
+    if(!snap.exists)return;
+    const data=snap.data();
+    const players={...data.players};
+    delete players[mySessionId];
+    const remaining=Object.keys(players).length;
+    const update={
+      [`players.${mySessionId}`]:firebase.firestore.FieldValue.delete(),
+      playerCount:remaining,
+    };
+    if(remaining===0){
+      // Last player left — mark empty with timestamp; auto-expires in 3 days (checked client-side)
+      update.emptyAt=Date.now();
+      update.status='waiting'; // still joinable
+    }else if(remaining<2&&data.status==='playing'){
+      update.status='waiting';
+      update.emptyAt=null;
+    }
+    await roomRef.update(update);
+  }catch(e){console.warn('Leave cleanup:',e);}
 }
 
-// ── Push move to Firestore ──
+function detachAndReset(){
+  if(unsubRoom){unsubRoom();unsubRoom=null;}
+  if(unsubMoves){unsubMoves();unsubMoves=null;}
+  window.removeEventListener('beforeunload',_markMeOffline);
+  roomRef=null;
+  onlineMode=false;roomCode='';myColor='w';fbMovesSeen=new Set();
+  document.querySelector('.board-col').classList.remove('board-flipped');
+  clearSession();
+  try{sessionStorage.removeItem('kchess-room-passcode');}catch(e){}
+  document.getElementById('fbActiveSection').style.display='none';
+  document.getElementById('fbLobby').style.display='flex';
+  unsubLobby=null;
+  startLobbyListener();
+}
+
+async function deleteRoomManual(){
+  const errEl=document.getElementById('deleteRoomError');
+  errEl.style.color='var(--primary-d)';
+  errEl.textContent='';
+
+  // Must be connected first
+  if(!fbReady||!fbFs){
+    errEl.textContent='⚠️ Not connected to Firebase — save your config first.';
+    return;
+  }
+
+  const code=document.getElementById('deleteRoomCode').value.trim().toUpperCase();
+  const passcode=document.getElementById('deleteRoomPasscode').value;
+  if(code.length!==6){errEl.textContent='⚠️ Enter a 6-letter room code';return;}
+  if(!passcode){errEl.textContent='⚠️ Enter the room passcode';return;}
+
+  errEl.textContent='🔍 Looking up room…';
+  let snap;
+  try{
+    snap=await fbFs.collection('lobby').doc(code).get();
+    console.log('[DeleteRoom] get result — exists:',snap.exists,'id:',snap.id);
+  }catch(e){
+    console.error('[DeleteRoom] get error:',e);
+    errEl.textContent='❌ Firestore error: '+e.message;
+    return;
+  }
+
+  if(!snap.exists){
+    errEl.textContent='❌ Room "'+code+'" not found in lobby. Check the code and make sure you are connected to the correct Firebase project.';
+    return;
+  }
+
+  const room=snap.data();
+  if(!room.passcodeHash){
+    errEl.textContent='❌ This room has no passcode set — it cannot be deleted this way.';
+    return;
+  }
+
+  const enteredHash=await sha256(passcode);
+  if(enteredHash!==room.passcodeHash){
+    errEl.textContent='❌ Wrong passcode.';
+    return;
+  }
+
+  errEl.textContent='🗑 Deleting…';
+  try{
+    // Signal any connected players first, then delete
+    await fbFs.collection('lobby').doc(code).update({status:'deleted'});
+    await fbFs.collection('lobby').doc(code).delete();
+    errEl.style.color='var(--secondary-d)';
+    errEl.textContent='✅ Room '+code+' deleted!';
+    document.getElementById('deleteRoomCode').value='';
+    document.getElementById('deleteRoomPasscode').value='';
+    setTimeout(()=>{errEl.textContent='';errEl.style.color='var(--primary-d)';},3000);
+  }catch(e){
+    console.error('[DeleteRoom] delete error:',e);
+    errEl.textContent='❌ Delete failed: '+e.message;
+  }
+}
+
+function _markMeOffline(){
+  if(!roomRef||!mySessionId)return;
+  roomRef.update({[`players.${mySessionId}.online`]:false}).catch(()=>{});
+}
+
 function pushMoveToFirebase(move,promo){
   if(!roomRef)return;
-  roomRef.collection('moves').add({
-    fromR:move.fromR, fromC:move.fromC, toR:move.toR, toC:move.toC,
-    promo:promo||null, color:myColor, ts:Date.now()
-  });
+  roomRef.collection('moves').add({fromR:move.fromR,fromC:move.fromC,toR:move.toR,toC:move.toC,promo:promo||null,color:myColor,ts:Date.now()});
+  saveGameStateLocal();
+  roomRef.update({gameState:serializeGameState()}).catch(()=>{});
 }
 
-function applyRemoteMove(mv){
+function applyRemoteMove(mv, force=false){
   if(gameOver)return;
+  if(!force && mv.color===myColor)return; // skip own echoed moves in live listener
   const legal=allLegal(turn);
   const matched=legal.find(m=>m.fromR===mv.fromR&&m.fromC===mv.fromC&&m.toR===mv.toR&&m.toC===mv.toC);
   if(!matched)return;
@@ -1596,11 +1573,11 @@ function applyRemoteMove(mv){
   renderMoves();
   playPieceSound(matched.piece,!!(matched.capture||matched.enPassant));
   clearSel();renderBoard();switchClock();
+  saveGameStateLocal();
   const fin=evalGameStatus();
   if(!fin&&inCheck(turn))SFX.check();
 }
 
-// ── Alert overlay ──
 function showAlertOverlay(trophy,title,sub){
   document.getElementById('winTrophy').textContent=trophy;
   document.getElementById('winTitle').textContent=title;
@@ -1608,12 +1585,59 @@ function showAlertOverlay(trophy,title,sub){
   document.getElementById('winOverlay').classList.add('open');
 }
 
-// Pause/resume on visibility change
-document.addEventListener('visibilitychange',()=>{
-  if(document.hidden)pauseClock();
-  else resumeClock();
-});
+function genCode(){
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let c='';for(let i=0;i<6;i++)c+=chars[Math.floor(Math.random()*chars.length)];
+  return c;
+}
+function copyCode(code){navigator.clipboard?.writeText(code).then(()=>showToast('📋 Copied!',code));}
+function showToast(text,sub){
+  document.getElementById('toastEmoji').textContent='📋';
+  document.getElementById('toastText').textContent=text;
+  document.getElementById('toastSub').textContent=sub||'';
+  const t=document.getElementById('badgeToast');
+  t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);
+}
+function toggleSharePanel(id){const p=document.getElementById('sharePanel-'+id);if(p)p.style.display=p.style.display==='none'?'block':'none';}
+async function generateInviteForRoom(code,panelId){
+  const errEl=document.getElementById('inviteError-'+panelId);errEl.textContent='';
+  const passcode=document.getElementById('passcode-'+panelId).value;
+  if(passcode.length<4){errEl.textContent='⚠️ Min 4 chars';return;}
+  const cfg=loadStoredConfig();if(!cfg){errEl.textContent='⚠️ No config saved';return;}
+  try{
+    const blob=await encryptData({config:cfg,roomCode:code,version:1},passcode);
+    document.getElementById('inviteBlob-'+panelId).value=blob;
+    document.getElementById('inviteResult-'+panelId).style.display='block';
+  }catch(e){errEl.textContent='❌ '+e.message;}
+}
+function copyInvite(panelId){
+  const blob=document.getElementById('inviteBlob-'+panelId)?.value;
+  if(!blob)return;
+  navigator.clipboard?.writeText(blob).then(()=>showToast('📋 Invite copied!',''));
+}
 
+async function importAndJoin(){
+  const errEl=document.getElementById('joinError');
+  errEl.textContent='';
+  const blob=document.getElementById('importBlob').value.trim();
+  const passcode=document.getElementById('importPasscode').value;
+  if(!blob){errEl.textContent='⚠️ Paste the invite string first';return;}
+  if(!passcode){errEl.textContent='⚠️ Enter the passcode';return;}
+  let payload;
+  try{ payload=await decryptData(blob,passcode); }
+  catch(e){ errEl.textContent='❌ Wrong passcode or corrupted invite'; return; }
+  const {config:cfg,roomCode:code}=payload;
+  if(!cfg||!code){errEl.textContent='❌ Invalid invite data';return;}
+  saveStoredConfig(cfg);
+  if(!fbInitFromConfig(cfg)){errEl.textContent='❌ Could not connect with imported config';return;}
+  renderConfigUI();
+  document.getElementById('joinCodeInput').value=code;
+  await joinRoom();
+}
+
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden)pauseClock();else resumeClock();
+});
 function inB(r,c){return r>=0&&r<8&&c>=0&&c<8}
 function findKing(col,b=board){
   for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(b[r][c]===col+'K')return{r,c};
@@ -2225,56 +2249,74 @@ document.getElementById('fbCancelEditBtn').addEventListener('click', ()=>{
 });
 document.getElementById('fbClearBtn').addEventListener('click', ()=>{
   if(!confirm('Clear saved Firebase config?'))return;
-  clearStoredConfig();fbReady=false;
+  clearStoredConfig();
   renderConfigUI();
 });
 
-// Create / add-another / delete active
+// Room actions
 document.getElementById('createRoomBtn').addEventListener('click', createRoom);
-document.getElementById('addAnotherRoomBtn').addEventListener('click', createRoom);
-document.getElementById('deleteRoomActiveBtn').addEventListener('click', deleteRoom);
-
-// Per-room invite buttons are wired inline via onclick in renderHostedRooms()
-
-// Join tabs
-document.querySelectorAll('.join-tab').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('.join-tab').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    const tab = btn.dataset.tab;
-    document.getElementById('joinManualPane').style.display  = tab==='manual' ?'block':'none';
-    document.getElementById('joinImportPane').style.display  = tab==='import' ?'block':'none';
-    document.getElementById('joinError').textContent='';
-  });
-});
-
-// Join / import
 document.getElementById('joinRoomBtn').addEventListener('click', joinRoom);
 document.getElementById('importJoinBtn').addEventListener('click', importAndJoin);
+document.getElementById('leaveRoomBtn').addEventListener('click', leaveRoom);
+document.getElementById('deleteRoomManualBtn').addEventListener('click', deleteRoomManual);
+document.getElementById('refreshLobbyBtn').addEventListener('click', ()=>{
+  if(unsubLobby){unsubLobby();unsubLobby=null;}
+  startLobbyListener();
+});
+
+// Join code input cleanup
 document.getElementById('joinCodeInput').addEventListener('input', e=>{
   e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
   document.getElementById('joinError').textContent='';
 });
 document.getElementById('joinCodeInput').addEventListener('keydown', e=>{ if(e.key==='Enter')joinRoom(); });
+document.getElementById('deleteRoomCode').addEventListener('input', e=>{
+  e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+});
 
-// Leave
-document.getElementById('leaveRoomBtn').addEventListener('click', ()=>leaveGame(false));
-
-// Win overlay — online mode goes back to online tab, local starts new game
+// Win overlay
 document.getElementById('winNewGameBtn').addEventListener('click', ()=>{
   document.getElementById('winOverlay').classList.remove('open');
-  if(onlineMode){ leaveGame(true); switchView('online'); }
+  if(onlineMode){ leaveRoom(); switchView('online'); }
   else startNewGame();
 });
 
 // ══════════════════════════════════════════════
-// BOOT
+// BOOT  — with refresh-restore
 // ══════════════════════════════════════════════
 buildBoard();
-startNewGame();
 loadBadges();
 loadTheme();
 document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('active',s.dataset.theme===document.documentElement.dataset.theme));
+
+(async()=>{
+  // Try to restore an ongoing online game after refresh
+  mySessionId=getOrCreateSessionId();
+  const sess=loadSession();
+  if(sess&&sess.mySessionId===mySessionId&&sess.roomCode&&loadStoredConfig()){
+    // Firebase not yet initialised — init it now
+    const cfg=loadStoredConfig();
+    if(cfg&&fbInitFromConfig(cfg)){
+      roomCode=sess.roomCode; myColor=sess.myColor;
+      roomRef=fbFs.collection('lobby').doc(roomCode);
+      let snap;
+      try{ snap=await roomRef.get(); }catch(e){ snap=null; }
+      if(snap&&snap.exists){
+        const room=snap.data();
+        const players=room.players||{};
+        if(players[mySessionId]){
+          // Still in the room — restore
+          await rejoinRoom(roomCode);
+          return;
+        }
+      }
+      // Room gone or session expired
+      clearSession();
+    }
+  }
+  // Normal start
+  startNewGame();
+})();
 
 // ══════════════════════════════════════════════
 // PWA — MANIFEST, SERVICE WORKER, INSTALL
