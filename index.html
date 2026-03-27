@@ -1596,7 +1596,10 @@ function applyRemoteMove(mv, force=false){
   matched.san=san;moveHistory.push(matched);
   renderMoves();
   playPieceSound(matched.piece,!!(matched.capture||matched.enPassant));
-  clearSel();renderBoard();switchClock();
+  // Render board immediately — paint the opponent's piece movement
+  clearSel();
+  renderBoard();
+  switchClock();
   saveGameStateLocal();
   const fin=evalGameStatus();
   if(!fin&&inCheck(turn))SFX.check();
@@ -2044,9 +2047,6 @@ function performMove(move,promo){
   move.san=san;moveHistory.push(move);
   renderMoves();
 
-  // Sync to Firebase in online mode
-  if(onlineMode)pushMoveToFirebase(move,promo);
-
   // Badge tracking
   if(moveHistory.length===1)awardBadge('first_move');
   if(move.capture||move.enPassant)awardBadge('first_capture');
@@ -2055,11 +2055,22 @@ function performMove(move,promo){
   else{playPieceSound(move.piece,!!(move.capture||move.enPassant))}
   if(move.piece[1]==='N'){knightMoveCount++;saveBadges();if(knightMoveCount>=5)awardBadge('knight_x5')}
 
-  clearSel();renderBoard();switchClock();
+  // Render the board FIRST — clear selection highlights, paint new piece positions
+  clearSel();
+  renderBoard();
+  switchClock();
+
   const fin=evalGameStatus();
   if(!fin&&inCheck(turn)){SFX.check();awardBadge('first_check')}
-  // Don't trigger AI in online mode
   if(!fin&&humanVsAI&&!onlineMode&&turn==='b')setTimeout(aiTurn,280);
+
+  // Push to Firebase AFTER rendering — using rAF so the browser has painted
+  // the move before any Firestore snapshot callbacks can fire.
+  // This prevents the synchronous onSnapshot from the local write
+  // interfering with the DOM before the frame is committed.
+  if(onlineMode){
+    requestAnimationFrame(()=>pushMoveToFirebase(move,promo));
+  }
 }
 
 function aiTurn(){
