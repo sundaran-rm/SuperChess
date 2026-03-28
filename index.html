@@ -464,6 +464,30 @@ select.sel:focus{border-color:var(--primary)}
 .side-btn.active-w{background:#fff;border-color:#aaa;box-shadow:0 0 0 3px rgba(200,200,200,.4)}
 .side-btn.active-b{background:#3B2A1A;color:#FFD93D;border-color:#8B6543;box-shadow:0 0 0 3px rgba(139,101,67,.4)}
 .side-btn-icon{font-size:22px;display:block;margin-bottom:2px}
+/* ══════════════ SETTINGS MODAL ══════════════ */
+.settings-card{
+  background:var(--card);border:3px solid var(--border);border-radius:24px;
+  padding:0;max-width:360px;width:92%;max-height:88vh;overflow-y:auto;
+  box-shadow:0 24px 60px rgba(0,0,0,.28);animation:popIn .3s cubic-bezier(.34,1.56,.64,1) both;
+}
+.settings-card::-webkit-scrollbar{width:5px}
+.settings-card::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
+.settings-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 20px 14px;border-bottom:2px solid var(--border);position:sticky;top:0;
+  background:var(--card);z-index:1;
+}
+.settings-section{padding:14px 20px 0}
+.settings-section:last-child{padding-bottom:18px}
+.settings-label{font-family:'Bubblegum Sans',cursive;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px}
+.settings-row{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:10px 0;border-bottom:1.5px solid var(--border);
+}
+.settings-row:last-child{border-bottom:none}
+.settings-row-info{flex:1;min-width:0}
+.settings-row-title{font-weight:800;font-size:13px;color:var(--text)}
+.settings-row-sub{font-size:11px;color:var(--muted);font-weight:600;margin-top:1px}
 </style>
 </head>
 <body>
@@ -536,17 +560,67 @@ select.sel:focus{border-color:var(--primary)}
 </div>
 
 <!-- Theme picker overlay -->
-<div id="themeOverlay" class="overlay theme-picker-overlay">
-  <div class="theme-card">
-    <h3>🎨 Choose Your Theme!</h3>
-    <div class="theme-swatches">
-      <div class="swatch" data-theme="candy" style="background:linear-gradient(135deg,#FF6B6B,#FFD93D)">🍭<span>Candy</span></div>
-      <div class="swatch" data-theme="ocean" style="background:linear-gradient(135deg,#0288D1,#00ACC1)">🌊<span>Ocean</span></div>
-      <div class="swatch" data-theme="forest" style="background:linear-gradient(135deg,#558B2F,#8BC34A)">🌿<span>Forest</span></div>
-      <div class="swatch" data-theme="volcano" style="background:linear-gradient(135deg,#E64A19,#FFC107)">🔥<span>Volcano</span></div>
-      <div class="swatch" data-theme="midnight" style="background:linear-gradient(135deg,#0D0221,#7C4DFF)">🌙<span>Midnight</span></div>
+<!-- Settings Modal -->
+<div id="settingsOverlay" class="overlay" onclick="if(event.target===this)closeSettings()">
+  <div class="settings-card">
+    <div class="settings-header">
+      <span style="font-family:'Bubblegum Sans',cursive;font-size:20px;color:var(--primary)">⚙️ Settings</span>
+      <button class="icon-btn" onclick="closeSettings()" style="width:30px;height:30px;font-size:14px">✕</button>
     </div>
-    <button class="btn btn-play btn-sm" style="margin-top:16px" onclick="document.getElementById('themeOverlay').classList.remove('open')">Done ✓</button>
+
+    <!-- Theme -->
+    <div class="settings-section">
+      <div class="settings-label">🎨 Theme</div>
+      <div class="theme-swatches" style="margin-top:8px">
+        <div class="swatch" data-theme="candy" style="background:linear-gradient(135deg,#FF6B6B,#FFD93D)">🍭<span>Candy</span></div>
+        <div class="swatch" data-theme="ocean" style="background:linear-gradient(135deg,#0288D1,#00ACC1)">🌊<span>Ocean</span></div>
+        <div class="swatch" data-theme="forest" style="background:linear-gradient(135deg,#558B2F,#8BC34A)">🌿<span>Forest</span></div>
+        <div class="swatch" data-theme="volcano" style="background:linear-gradient(135deg,#E64A19,#FFC107)">🔥<span>Volcano</span></div>
+        <div class="swatch" data-theme="midnight" style="background:linear-gradient(135deg,#0D0221,#7C4DFF)">🌙<span>Midnight</span></div>
+      </div>
+    </div>
+
+    <!-- Toggles -->
+    <div class="settings-section">
+      <div class="settings-label">🎮 Gameplay</div>
+      <div class="settings-row">
+        <div class="settings-row-info">
+          <div class="settings-row-title">⏰ Chess Timer</div>
+          <div class="settings-row-sub">Show clocks during games</div>
+        </div>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="settingTimer" onchange="applySettingTimer(this.checked)">
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-info">
+          <div class="settings-row-title">💬 Piece Tooltips</div>
+          <div class="settings-row-sub">Show piece info on hover</div>
+        </div>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="settingTooltips" onchange="applySettingTooltips(this.checked)">
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-info">
+          <div class="settings-row-title">🔊 Sound Effects</div>
+          <div class="settings-row-sub">Piece sounds and fanfares</div>
+        </div>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="settingSound" onchange="applySettingSound(this.checked)">
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Reset -->
+    <div class="settings-section" style="border-top:2px solid var(--border);padding-top:14px;margin-top:4px">
+      <button class="btn btn-sm" id="resetSettingsBtn" style="width:100%;background:#fff5f5;border:2.5px solid var(--primary);color:var(--primary-d)">
+        🔄 Reset All Settings to Default
+      </button>
+    </div>
   </div>
 </div>
 
@@ -564,7 +638,7 @@ select.sel:focus{border-color:var(--primary)}
   <div class="site-title">🏰 Kingdom Chess</div>
   <div class="header-tools">
     <button class="icon-btn" id="soundToggle" title="Toggle sound">🔊</button>
-    <button class="icon-btn" title="Change theme" onclick="document.getElementById('themeOverlay').classList.add('open')">🎨</button>
+    <button class="icon-btn" id="settingsBtn" title="Settings">⚙️</button>
   </div>
 </header>
 
@@ -907,11 +981,6 @@ function playPieceSound(pieceCode, isCapture) {
   if (t && SFX[t]) SFX[t]();
 }
 
-document.getElementById('soundToggle').addEventListener('click', () => {
-  soundOn = !soundOn;
-  document.getElementById('soundToggle').textContent = soundOn ? '🔊' : '🔇';
-});
-
 // ══════════════════════════════════════════════
 // PIECE INFO (Tooltips)
 // ══════════════════════════════════════════════
@@ -929,6 +998,7 @@ const tipName = document.getElementById('tipName');
 const tipDesc = document.getElementById('tipDesc');
 
 function showTooltip(piece, x, y) {
+  if(!tooltipsEnabled) return;
   const type = piece[1], info = PIECE_INFO[type];
   if (!info) return;
   tipIcon.textContent = PIECE_GLYPHS[piece] || info.icon;
@@ -1012,20 +1082,125 @@ function renderBadgesPanel() {
 }
 
 // ══════════════════════════════════════════════
-// THEME SYSTEM
+// SETTINGS SYSTEM
 // ══════════════════════════════════════════════
-async function loadTheme() {
-  try {
-    const r = await window.storage.get('kchess-theme');
-    if (r && r.value) applyTheme(r.value, false);
-  } catch(e) {}
+const SETTINGS_KEY = 'kchess-settings';
+const SETTINGS_DEFAULTS = {
+  theme: 'candy',
+  timerEnabled: true,
+  tooltipsEnabled: true,
+  soundEnabled: true,
+};
+
+function loadSettings(){
+  try{
+    const raw=localStorage.getItem(SETTINGS_KEY);
+    return raw ? {...SETTINGS_DEFAULTS,...JSON.parse(raw)} : {...SETTINGS_DEFAULTS};
+  }catch(e){ return {...SETTINGS_DEFAULTS}; }
 }
-function applyTheme(theme, save=true) {
-  document.documentElement.dataset.theme = theme;
-  document.querySelectorAll('.swatch').forEach(s => s.classList.toggle('active', s.dataset.theme === theme));
-  if (save) window.storage.set('kchess-theme', theme).catch(() => {});
+function saveSettings(s){
+  try{ localStorage.setItem(SETTINGS_KEY,JSON.stringify(s)); }catch(e){}
 }
-document.querySelectorAll('.swatch').forEach(s => s.addEventListener('click', () => applyTheme(s.dataset.theme)));
+function getSettings(){ return loadSettings(); }
+function setSetting(key,value){
+  const s=loadSettings(); s[key]=value; saveSettings(s);
+}
+
+// Apply all settings on load
+function applyAllSettings(){
+  const s=loadSettings();
+  // Theme
+  applyTheme(s.theme,false);
+  // Timer
+  timerEnabled=s.timerEnabled;
+  const timerToggleEl=document.getElementById('timerToggle');
+  if(timerToggleEl) timerToggleEl.checked=s.timerEnabled;
+  const timerOptionsEl=document.getElementById('timerOptions');
+  if(timerOptionsEl){
+    timerOptionsEl.style.opacity=s.timerEnabled?'1':'0.35';
+    timerOptionsEl.style.pointerEvents=s.timerEnabled?'auto':'none';
+  }
+  document.getElementById('undoBtn').style.display=s.timerEnabled?'none':'inline-flex';
+  // Tooltips
+  tooltipsEnabled=s.tooltipsEnabled;
+  // Sound
+  soundOn=s.soundEnabled;
+  document.getElementById('soundToggle').textContent=s.soundEnabled?'🔊':'🔇';
+  // Sync settings modal checkboxes if open
+  const settingTimer=document.getElementById('settingTimer');
+  if(settingTimer) settingTimer.checked=s.timerEnabled;
+  const settingTooltips=document.getElementById('settingTooltips');
+  if(settingTooltips) settingTooltips.checked=s.tooltipsEnabled;
+  const settingSound=document.getElementById('settingSound');
+  if(settingSound) settingSound.checked=s.soundEnabled;
+  // Sync theme swatches
+  document.querySelectorAll('.swatch').forEach(sw=>sw.classList.toggle('active',sw.dataset.theme===s.theme));
+}
+
+// Individual apply functions (called by modal toggles — instant feedback)
+function applySettingTimer(val){
+  setSetting('timerEnabled',val);
+  timerEnabled=val;
+  const timerOptionsEl=document.getElementById('timerOptions');
+  timerOptionsEl.style.opacity=val?'1':'0.35';
+  timerOptionsEl.style.pointerEvents=val?'auto':'none';
+  document.getElementById('timerToggle').checked=val;
+  document.getElementById('undoBtn').style.display=val?'none':'inline-flex';
+  resetClocks();
+}
+function applySettingTooltips(val){
+  setSetting('tooltipsEnabled',val);
+  tooltipsEnabled=val;
+  if(!val) hideTooltip();
+}
+function applySettingSound(val){
+  setSetting('soundEnabled',val);
+  soundOn=val;
+  document.getElementById('soundToggle').textContent=val?'🔊':'🔇';
+}
+
+function applyTheme(theme,save=true){
+  document.documentElement.dataset.theme=theme;
+  document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('active',s.dataset.theme===theme));
+  if(save) setSetting('theme',theme);
+}
+
+// Settings modal open/close
+function openSettings(){
+  const s=loadSettings();
+  document.getElementById('settingTimer').checked=s.timerEnabled;
+  document.getElementById('settingTooltips').checked=s.tooltipsEnabled;
+  document.getElementById('settingSound').checked=s.soundEnabled;
+  document.getElementById('settingsOverlay').classList.add('open');
+}
+function closeSettings(){
+  document.getElementById('settingsOverlay').classList.remove('open');
+}
+
+function resetAllSettings(){
+  if(!confirm('Reset all settings to defaults? This will also reset your theme.'))return;
+  localStorage.removeItem(SETTINGS_KEY);
+  applyAllSettings();
+  closeSettings();
+  showToast('✅ Settings reset!','All settings restored to default');
+}
+
+// Wire swatch clicks
+document.querySelectorAll('.swatch').forEach(s=>s.addEventListener('click',()=>applyTheme(s.dataset.theme)));
+// Wire settings button
+document.getElementById('settingsBtn').addEventListener('click',openSettings);
+// Wire reset settings button
+document.getElementById('resetSettingsBtn').addEventListener('click',resetAllSettings);
+// Wire sound toggle (header button still works as quick toggle)
+document.getElementById('soundToggle').addEventListener('click',()=>{
+  const newVal=!soundOn;
+  applySettingSound(newVal);
+  const settingSound=document.getElementById('settingSound');
+  if(settingSound) settingSound.checked=newVal;
+});
+
+// tooltipsEnabled state variable (used by showTooltip)
+let tooltipsEnabled=true;
 
 // ══════════════════════════════════════════════
 // FEN PARSER
@@ -1386,7 +1561,7 @@ async function onOnlineGameStart(isRestore){
   document.getElementById('timerToggle').checked=cfg.timerEnabled!==false;
   document.getElementById('timeSelect').value=String(cfg.timeMin||5);
   document.getElementById('incrSelect').value=String(cfg.incrSec||10);
-  applyTimerToggle();
+  applySettingTimer(cfg.timerEnabled!==false);
   switchView('play');
   if(isRestore){
     const ls=loadGameStateLocal();
@@ -2395,18 +2570,10 @@ document.getElementById('resetConfirmBtn').addEventListener('click', async()=>{
 });
 
 // Timer toggle
-const timerToggleEl=document.getElementById('timerToggle');
-const timerOptionsEl=document.getElementById('timerOptions');
-function applyTimerToggle(){
-  timerEnabled=timerToggleEl.checked;
-  timerOptionsEl.style.opacity=timerEnabled?'1':'0.35';
-  timerOptionsEl.style.pointerEvents=timerEnabled?'auto':'none';
-  // Show/hide undo based on timer state
-  document.getElementById('undoBtn').style.display=timerEnabled?'none':'inline-flex';
-  resetClocks();
-}
-timerToggleEl.addEventListener('change',applyTimerToggle);
-applyTimerToggle();
+// The in-game timer toggle also syncs with settings
+document.getElementById('timerToggle').addEventListener('change',function(){
+  applySettingTimer(this.checked);
+});
 
 // ══════════════════════════════════════════════
 // VIEW / TAB NAVIGATION
@@ -2498,7 +2665,7 @@ document.getElementById('winNewGameBtn').addEventListener('click', ()=>{
 // ══════════════════════════════════════════════
 buildBoard();
 loadBadges();
-loadTheme();
+applyAllSettings();
 document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('active',s.dataset.theme===document.documentElement.dataset.theme));
 
 (async()=>{
