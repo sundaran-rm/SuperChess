@@ -457,6 +457,13 @@ select.sel:focus{border-color:var(--primary)}
 .hosted-room-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:var(--bl);border:2px solid var(--border);border-radius:14px}
 .room-code-pill{display:inline-flex;align-items:center;gap:5px;font-family:'Bubblegum Sans',cursive;font-size:20px;letter-spacing:4px;color:var(--primary);cursor:pointer;padding:4px 10px;border-radius:10px;background:var(--card);border:2px dashed var(--accent-d);transition:background .2s}
 .room-code-pill:hover{background:var(--bmove)}
+/* Side picker */
+.side-picker{display:flex;gap:8px;margin-bottom:10px}
+.side-btn{flex:1;padding:9px 8px;border-radius:14px;border:2.5px solid var(--border);background:var(--card);cursor:pointer;text-align:center;transition:all .18s;font-family:'Bubblegum Sans',cursive;font-size:13px}
+.side-btn:hover{transform:translateY(-2px);box-shadow:var(--shsm)}
+.side-btn.active-w{background:#fff;border-color:#aaa;box-shadow:0 0 0 3px rgba(200,200,200,.4)}
+.side-btn.active-b{background:#3B2A1A;color:#FFD93D;border-color:#8B6543;box-shadow:0 0 0 3px rgba(139,101,67,.4)}
+.side-btn-icon{font-size:22px;display:block;margin-bottom:2px}
 </style>
 </head>
 <body>
@@ -603,6 +610,16 @@ select.sel:focus{border-color:var(--primary)}
             <option value="medium">😤 Medium</option>
           </select></div>
         </div>
+        <!-- Side selection -->
+        <div style="font-size:11px;font-weight:800;color:var(--muted);margin-bottom:6px">⚔️ Player 1 plays as:</div>
+        <div class="side-picker" id="localSidePicker">
+          <button class="side-btn active-w" id="localSideW" onclick="setLocalSide('w')">
+            <span class="side-btn-icon">♔</span>White
+          </button>
+          <button class="side-btn" id="localSideB" onclick="setLocalSide('b')">
+            <span class="side-btn-icon">♚</span>Black
+          </button>
+        </div>
         <!-- Timer row -->
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
           <label class="toggle-wrap" title="Enable chess clock">
@@ -716,6 +733,16 @@ select.sel:focus{border-color:var(--primary)}
         <!-- Create room -->
         <div class="pc">
           <div class="ob-title">🏠 Create a Room</div>
+          <!-- Side selection for host -->
+          <div style="font-size:11px;font-weight:800;color:var(--muted);margin-bottom:6px">⚔️ You play as:</div>
+          <div class="side-picker" id="onlineSidePicker">
+            <button class="side-btn active-w" id="onlineSideW" onclick="setOnlineSide('w')">
+              <span class="side-btn-icon">♔</span>White
+            </button>
+            <button class="side-btn" id="onlineSideB" onclick="setOnlineSide('b')">
+              <span class="side-btn-icon">♚</span>Black
+            </button>
+          </div>
           <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px">
             <div class="sw"><select id="onlineTimeSelect" class="sel">
               <option value="3">3 min</option><option value="5" selected>5 min</option><option value="10">10 min</option>
@@ -1040,6 +1067,8 @@ let board=[],turn='w',castlingRights={wK:true,wQ:true,bK:true,bQ:true};
 let enPassantTarget=null,halfmoveClock=0,fullmoveNumber=1;
 let moveHistory=[],stateStack=[],lastMove=null,gameOver=false;
 let humanVsAI=false,aiLevel='easy';
+let localPlayerSide='w'; // 'w' or 'b' — which side Player 1 / human plays locally
+let onlineHostSide='w';  // 'w' or 'b' — chosen side when creating an online room
 let timerEnabled=true,incrementSec=10,clockPaused=false;
 let baseMinutes=5,whiteTimeMs=300000,blackTimeMs=300000;
 let activeClock=null,clockInterval=null,firstMoveMade=false;
@@ -1211,6 +1240,8 @@ function renderLobby(snap,THREE_DAYS=3*24*60*60*1000){
       const daysLeft=Math.max(0,Math.ceil((THREE_DAYS-(now-r.emptyAt))/(24*60*60*1000)));
       expiryNote=`<span style="color:var(--primary-d);font-size:10px"> · expires in ${daysLeft}d</span>`;
     }
+    const takenColors=r.takenColors||[];
+    const availableColor=!takenColors.includes('w')?'♔ White':(!takenColors.includes('b')?'♚ Black':'Full');
     const card=document.createElement('div');
     card.className='lobby-room-card';
     card.innerHTML=`
@@ -1224,7 +1255,7 @@ function renderLobby(snap,THREE_DAYS=3*24*60*60*1000){
           ${myRoom
             ?`<button class="btn btn-play btn-sm" onclick="rejoinRoom('${code}')">↩ Rejoin</button>`
             :(!isFull
-              ?`<button class="btn btn-play btn-sm" onclick="joinRoomByCode('${code}')">Join</button>`
+              ?`<button class="btn btn-play btn-sm" onclick="joinRoomByCode('${code}')" title="Join as ${availableColor}">Join as ${availableColor}</button>`
               :`<span style="font-size:11px;color:var(--muted);font-weight:700">Full</span>`)}
         </div>
       </div>`;
@@ -1269,20 +1300,21 @@ async function createRoom(){
   const tMin=+document.getElementById('onlineTimeSelect').value;
   const incr=+document.getElementById('onlineIncrSelect').value;
   const passcodeHash=await sha256(passcodeRaw);
+  const hostColor=onlineHostSide; // 'w' or 'b' — host's chosen side
   try{
     await fbFs.collection('lobby').doc(code).set({
       config:{timeMin:tMin,incrSec:incr,timerEnabled:timerOn,createdAt:Date.now()},
       status:'waiting',
-      players:{[mySessionId]:{color:'w',online:true,joinedAt:Date.now()}},
+      players:{[mySessionId]:{color:hostColor,online:true,joinedAt:Date.now()}},
+      takenColors:[hostColor], // tracks which colors are assigned
       playerCount:1,passcodeHash,gameState:null,result:null,
       createdAt:Date.now(),emptyAt:null
     });
   }catch(e){errEl.textContent='❌ '+e.message;return;}
   errEl.textContent='';
-  // Store plaintext passcode for this session (so creator can see it)
   try{sessionStorage.setItem('kchess-room-passcode',passcodeRaw);}catch(e){}
   document.getElementById('newRoomPasscode').value='';
-  roomCode=code;myColor='w';roomRef=fbFs.collection('lobby').doc(code);
+  roomCode=code;myColor=hostColor;roomRef=fbFs.collection('lobby').doc(code);
   saveSession();
   onOnlineGameStart(false);
 }
@@ -1315,9 +1347,13 @@ async function joinRoom(){
   }
   const playerCount=Object.keys(room.players||{}).length;
   if(playerCount>=2){errEl.textContent='❌ Room is full (2/2 players).';return;}
-  roomCode=code;myColor='b';roomRef=fbFs.collection('lobby').doc(code);
+  // Assign the remaining color (opposite of what's taken)
+  const takenColors=room.takenColors||['w'];
+  const joinerColor=takenColors.includes('w')&&!takenColors.includes('b')?'b':'w';
+  roomCode=code;myColor=joinerColor;roomRef=fbFs.collection('lobby').doc(code);
   await roomRef.update({
-    [`players.${mySessionId}`]:{color:'b',online:true,joinedAt:Date.now()},
+    [`players.${mySessionId}`]:{color:joinerColor,online:true,joinedAt:Date.now()},
+    takenColors:[...takenColors,joinerColor],
     playerCount:2,status:'playing',emptyAt:null
   });
   saveSession();
@@ -1501,12 +1537,19 @@ async function _decrementAndMaybeDelete(){
       playerCount:remaining,
     };
     if(remaining===0){
-      // Last player left — mark empty with timestamp; auto-expires in 3 days (checked client-side)
+      // Last player left — room empty; reset side assignments so next player can choose
       update.emptyAt=Date.now();
-      update.status='waiting'; // still joinable
+      update.status='waiting';
+      update.takenColors=[];
+      update.players={};
+      update.playerCount=0;
     }else if(remaining<2&&data.status==='playing'){
+      // One player left — reopen for joining, free up the leaving player's color
+      const leavingColor=(data.players&&data.players[mySessionId]&&data.players[mySessionId].color)||null;
+      const updatedTaken=(data.takenColors||[]).filter(c=>c!==leavingColor);
       update.status='waiting';
       update.emptyAt=null;
+      update.takenColors=updatedTaken;
     }
     await roomRef.update(update);
   }catch(e){console.warn('Leave cleanup:',e);}
@@ -1642,6 +1685,9 @@ function applyOnlineReset(){
   }
   saveGameStateLocal();
   clearSel();renderBoard();renderMoves();updateBanner();
+  // Re-apply board flip for Black
+  if(myColor==='b')document.querySelector('.board-col').classList.add('board-flipped');
+  else document.querySelector('.board-col').classList.remove('board-flipped');
   statusEl.textContent=myColor==='w'?'↺ Board reset! Your move, White.':'↺ Board reset! Waiting for White…';
   renderClocks();
 }
@@ -1831,20 +1877,34 @@ function evalBoard(b){
 function randEl(arr){return arr[Math.floor(Math.random()*arr.length)]}
 
 function chooseAI(){
-  const legal=allLegal('b');if(!legal.length)return null;
+  const aiCol=localPlayerSide==='w'?'b':'w';
+  const legal=allLegal(aiCol);if(!legal.length)return null;
   if(aiLevel==='toddler')return randEl(legal);
-  if(aiLevel==='easy'){const sc=legal.map(m=>{const sn=snapState(board,'b');return{m,s:evalBoard(applyOnBoard(m,sn,'Q').board)}});sc.sort((a,b)=>b.s-a.s);return randEl(sc.slice(0,Math.min(5,sc.length))).m}
-  // medium: depth 2
+  if(aiLevel==='easy'){
+    const sc=legal.map(m=>{const sn=snapState(board,aiCol);return{m,s:evalBoard(applyOnBoard(m,sn,'Q').board)}});
+    sc.sort((a,b)=>b.s-a.s);return randEl(sc.slice(0,Math.min(5,sc.length))).m;
+  }
+  // medium: depth 2 — AI maximises from its own perspective
+  const aiMax=aiCol==='b'; // true if AI is black (original convention)
   let best=-Infinity,bms=[];
-  const sn=snapState(board,'b');
-  for(const m of legal){const sc=minimax(applyOnBoard(m,sn,'Q'),1,-Infinity,Infinity,false);if(sc>best){best=sc;bms=[m]}else if(sc===best)bms.push(m)}
+  const sn=snapState(board,aiCol);
+  for(const m of legal){
+    const sc=minimax(applyOnBoard(m,sn,'Q'),1,-Infinity,Infinity,!aiMax,aiCol);
+    if(sc>best){best=sc;bms=[m]}else if(sc===best)bms.push(m);
+  }
   return bms.length?randEl(bms):randEl(legal);
 }
-function minimax(st,depth,alpha,beta,max){
-  const col=max?'b':'w',legal=allLegal(col,st.board);
-  if(depth===0||!legal.length){let b=evalBoard(st.board);if(!legal.length&&inCheck(col,st.board))b+=max?-10000:10000;return b}
-  if(max){let m=-Infinity;for(const mv of legal){const e=minimax(applyOnBoard(mv,st,'Q'),depth-1,alpha,beta,false);m=Math.max(m,e);alpha=Math.max(alpha,e);if(beta<=alpha)break}return m}
-  else{let m=Infinity;for(const mv of legal){const e=minimax(applyOnBoard(mv,st,'Q'),depth-1,alpha,beta,true);m=Math.min(m,e);beta=Math.min(beta,e);if(beta<=alpha)break}return m}
+function minimax(st,depth,alpha,beta,max,aiCol='b'){
+  const col=max?aiCol:(aiCol==='b'?'w':'b'),legal=allLegal(col,st.board);
+  if(depth===0||!legal.length){
+    let b=evalBoard(st.board);
+    // Flip score perspective if AI is White (AI wants low score by default evalBoard convention)
+    if(aiCol==='w')b=-b;
+    if(!legal.length&&inCheck(col,st.board))b+=max?-10000:10000;
+    return b;
+  }
+  if(max){let m=-Infinity;for(const mv of legal){const e=minimax(applyOnBoard(mv,st,'Q'),depth-1,alpha,beta,false,aiCol);m=Math.max(m,e);alpha=Math.max(alpha,e);if(beta<=alpha)break}return m}
+  else{let m=Infinity;for(const mv of legal){const e=minimax(applyOnBoard(mv,st,'Q'),depth-1,alpha,beta,true,aiCol);m=Math.min(m,e);beta=Math.min(beta,e);if(beta<=alpha)break}return m}
 }
 
 // ══════════════════════════════════════════════
@@ -2103,7 +2163,7 @@ function performMove(move,promo){
 
   const fin=evalGameStatus();
   if(!fin&&inCheck(turn)){SFX.check();awardBadge('first_check')}
-  if(!fin&&humanVsAI&&!onlineMode&&turn==='b')setTimeout(aiTurn,280);
+  if(!fin&&humanVsAI&&!onlineMode&&turn!==(localPlayerSide))setTimeout(aiTurn,280);
 
   // Push to Firebase AFTER rendering — using rAF so the browser has painted
   // the move before any Firestore snapshot callbacks can fire.
@@ -2115,7 +2175,8 @@ function performMove(move,promo){
 }
 
 function aiTurn(){
-  if(gameOver||!humanVsAI||turn!=='b')return;
+  const aiColor=localPlayerSide==='w'?'b':'w';
+  if(gameOver||!humanVsAI||turn!==aiColor)return;
   const move=chooseAI();if(!move){evalGameStatus();return}
   const sn=snapState();applyMove(move,move.promotion?'Q':null);
   const san=makeSAN(move,sn);move.san=san;moveHistory.push(move);
@@ -2169,9 +2230,10 @@ function onBoardClick(e){
   if(hintTimeout){clearTimeout(hintTimeout);hintTimeout=null}
   const r=+sq.dataset.r,c=+sq.dataset.c;
   if(gameOver)return;
-  // In online mode, only move your own color
+  // Online: only move your color
   if(onlineMode&&turn!==myColor)return;
-  if(!onlineMode&&humanVsAI&&turn==='b')return;
+  // HvAI: human plays localPlayerSide, AI plays the other
+  if(!onlineMode&&humanVsAI&&turn!==localPlayerSide)return;
   const coord=itc(r,c),piece=board[r][c];
   if(selectedSquare){
     const matched=legalMovesForSelection.find(m=>m.toR===r&&m.toC===c);
@@ -2202,6 +2264,18 @@ document.querySelectorAll('.promo-choice').forEach(btn=>btn.addEventListener('cl
 // ══════════════════════════════════════════════
 // GAME CONTROLS
 // ══════════════════════════════════════════════
+// ── Side selection helpers ──
+function setLocalSide(side){
+  localPlayerSide=side;
+  document.getElementById('localSideW').className='side-btn'+(side==='w'?' active-w':'');
+  document.getElementById('localSideB').className='side-btn'+(side==='b'?' active-b':'');
+}
+function setOnlineSide(side){
+  onlineHostSide=side;
+  document.getElementById('onlineSideW').className='side-btn'+(side==='w'?' active-w':'');
+  document.getElementById('onlineSideB').className='side-btn'+(side==='b'?' active-b':'');
+}
+
 function initialBoard(){
   const b=Array.from({length:8},()=>Array(8).fill(null));
   const br=['R','N','B','Q','K','B','N','R'];
@@ -2227,15 +2301,23 @@ function startNewGame(isOnline=false){
     incrementSec=+document.getElementById('incrSelect').value;
   }
   document.getElementById('blackName').textContent=
-    onlineMode ? 'Opponent 🌐' : (humanVsAI?'Computer 🤖':'Black Player');
+    onlineMode ? 'Opponent 🌐' : (humanVsAI?'Computer 🤖':'Player 2');
   // Undo: only allowed without timer and not online
   document.getElementById('undoBtn').style.display=(timerEnabled||onlineMode)?'none':'inline-flex';
   // Hint: disabled in online mode
   document.getElementById('hintBtn').style.display=onlineMode?'none':'inline-flex';
   clearSel();resetClocks();updateBanner();
-  statusEl.textContent=onlineMode
-    ? (myColor==='w'?'♟️ You are White — make your move!':'⏳ Waiting for White to move…')
-    : '🎮 Game started! Tap a piece to begin!';
+  if(onlineMode){
+    statusEl.textContent=myColor==='w'?'♟️ You are White — make your move!':'⏳ Waiting for White to move…';
+  }else{
+    statusEl.textContent='🎮 Game started! Tap a piece to begin!';
+    // Apply local side: flip board if Player 1 chose Black
+    if(localPlayerSide==='b'){
+      document.querySelector('.board-col').classList.add('board-flipped');
+    }else{
+      document.querySelector('.board-col').classList.remove('board-flipped');
+    }
+  }
   renderBoard();renderMoves();
 }
 
