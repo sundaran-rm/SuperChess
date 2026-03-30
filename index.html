@@ -672,45 +672,151 @@ select.sel:focus{border-color:var(--primary)}
       </div>
     </div>
 
-    <!-- Firebase Config Export/Import -->
-    <div class="settings-section" style="border-top:2px solid var(--border);padding-top:14px;margin-top:4px">
-      <div class="settings-label">🔥 Firebase Connection</div>
-      <p style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:10px;line-height:1.6">
-        Export your Firebase config as an encrypted blob to share with other devices or people. Import a blob to connect instantly.
-      </p>
+    <!-- ── ONLINE SECTION ── -->
+    <div class="settings-section" id="settingsOnlineSection" style="border-top:2px solid var(--border);padding-top:14px;margin-top:4px">
+      <div class="settings-label">🌐 Online Play</div>
 
-      <!-- Export -->
-      <div style="margin-bottom:12px">
-        <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:6px">📤 Export Config</div>
-        <div id="cfgExportNoConfig" style="font-size:11px;color:var(--muted);font-weight:700;padding:8px;background:var(--bl);border:2px solid var(--border);border-radius:10px;text-align:center">
-          No Firebase config saved yet. Set it up in the Online tab first.
+      <!-- Firebase connection status bar -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:8px 10px;background:var(--bl);border:2px solid var(--border);border-radius:12px">
+        <span id="fbStatusBadge" class="conn-badge disconnected" style="font-size:11px"><span class="conn-dot"></span> Not connected</span>
+        <div style="display:flex;gap:5px">
+          <button class="btn btn-sm" id="fbEditBtn" style="font-size:10px;padding:2px 8px;display:none">✏️ Edit</button>
+          <button class="btn btn-sm" id="fbClearBtn" style="font-size:10px;padding:2px 8px;background:#fff5f5;border:2px solid var(--primary);color:var(--primary-d);display:none">🗑</button>
         </div>
-        <div id="cfgExportForm" style="display:none">
+      </div>
+
+      <!-- Firebase config form (collapsed when connected) -->
+      <div id="fbConfigCard" style="margin-bottom:10px">
+        <div id="fbConfigForm">
+          <p style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:8px;line-height:1.5">
+            Paste your Firebase config from <strong>Project Settings → Your apps → Web</strong>.
+          </p>
+          <textarea id="fbConfigPaste" class="fb-textarea" rows="2" placeholder='Paste Firebase config JSON here…'></textarea>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:7px">
+            <input class="fb-field" id="fbApiKey"     placeholder="apiKey *"    type="password">
+            <input class="fb-field" id="fbProjectId"  placeholder="projectId *" type="text">
+            <input class="fb-field" id="fbAuthDomain" placeholder="authDomain"  type="text">
+            <input class="fb-field" id="fbAppId"      placeholder="appId"       type="text">
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button class="btn btn-play btn-sm" id="fbSaveConfigBtn" style="flex:1">💾 Save & Connect</button>
+            <button class="btn btn-sm" id="fbCancelEditBtn" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);display:none">✕</button>
+          </div>
+          <div id="fbConfigError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:5px;min-height:14px"></div>
+        </div>
+      </div>
+
+      <!-- Lobby (shown when Firebase ready) -->
+      <div id="fbLobby" style="display:none;flex-direction:column;gap:10px">
+
+        <!-- Create room -->
+        <div style="background:var(--bl);border:2px solid var(--border);border-radius:14px;padding:12px">
+          <div style="font-family:'Bubblegum Sans',cursive;font-size:14px;color:var(--primary);margin-bottom:8px">🏠 Create a Room</div>
+          <div style="font-size:11px;font-weight:800;color:var(--muted);margin-bottom:5px">⚔️ You play as:</div>
+          <div class="side-picker" id="onlineSidePicker" style="margin-bottom:8px">
+            <button class="side-btn active-w" id="onlineSideW" onclick="setOnlineSide('w')"><span class="side-btn-icon">♔</span>White</button>
+            <button class="side-btn" id="onlineSideB" onclick="setOnlineSide('b')"><span class="side-btn-icon">♚</span>Black</button>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+            <div class="sw"><select id="onlineTimeSelect" class="sel"><option value="3">3 min</option><option value="5" selected>5 min</option><option value="10">10 min</option></select></div>
+            <div class="sw"><select id="onlineIncrSelect" class="sel"><option value="0">+0s</option><option value="5">+5s</option><option value="10" selected>+10s</option><option value="30">+30s</option></select></div>
+            <label class="toggle-wrap"><input type="checkbox" id="onlineTimerToggle" checked><span class="toggle-track"><span class="toggle-thumb"></span></span><span style="font-weight:800;font-size:11px">Timer</span></label>
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            <input type="password" id="newRoomPasscode" class="fb-field" placeholder="Room passcode (required)" style="flex:1">
+            <button type="button" class="btn btn-sm" onclick="togglePwVis('newRoomPasscode',this)" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);padding:4px 9px">👁</button>
+          </div>
+          <button class="btn btn-play btn-sm" id="createRoomBtn" style="width:100%">🏠 Create Room</button>
+          <div id="createRoomError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:5px;min-height:13px"></div>
+        </div>
+
+        <!-- Live lobby list -->
+        <div style="background:var(--bl);border:2px solid var(--border);border-radius:14px;padding:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <span style="font-family:'Bubblegum Sans',cursive;font-size:14px;color:var(--primary)">🌐 Open Rooms</span>
+            <button class="btn btn-sm" id="refreshLobbyBtn" style="font-size:10px;padding:3px 9px;background:var(--card);border:2px solid var(--border);color:var(--muted)">↺</button>
+          </div>
+          <div id="lobbyList" style="display:flex;flex-direction:column;gap:7px">
+            <div class="lobby-empty">Loading rooms…</div>
+          </div>
+        </div>
+
+        <!-- Join by code -->
+        <div style="background:var(--bl);border:2px solid var(--border);border-radius:14px;padding:12px">
+          <div style="font-family:'Bubblegum Sans',cursive;font-size:14px;color:var(--primary);margin-bottom:8px">✍️ Join by Code</div>
+          <input type="text" id="joinCodeInput" class="room-input" maxlength="6" placeholder="ABCDEF" autocomplete="off" spellcheck="false">
+          <button class="btn btn-play btn-sm" id="joinRoomBtn" style="width:100%;margin-top:7px">🤝 Join Room</button>
+          <div id="joinError" style="color:var(--primary-d);font-size:11px;font-weight:700;text-align:center;margin-top:5px;min-height:16px"></div>
+        </div>
+
+        <!-- Import invite -->
+        <div style="background:var(--bl);border:2px solid var(--border);border-radius:14px;padding:12px">
+          <div style="font-family:'Bubblegum Sans',cursive;font-size:14px;color:var(--primary);margin-bottom:8px">🔐 Import Invite</div>
+          <textarea id="importBlob" class="fb-textarea" rows="2" placeholder="Paste encrypted invite…"></textarea>
+          <input type="password" id="importPasscode" class="fb-field" placeholder="Passcode" style="margin-top:6px;width:100%">
+          <button class="btn btn-play btn-sm" id="importJoinBtn" style="width:100%;margin-top:7px">🔓 Decrypt & Join</button>
+        </div>
+
+        <!-- Delete room -->
+        <div style="background:var(--bl);border:2px solid var(--border);border-radius:14px;padding:12px">
+          <div style="font-family:'Bubblegum Sans',cursive;font-size:14px;color:var(--primary);margin-bottom:8px">🗑 Delete Room</div>
+          <input type="text" id="deleteRoomCode" class="room-input" maxlength="6" placeholder="Room code" style="margin-bottom:6px" autocomplete="off" spellcheck="false">
+          <input type="password" id="deleteRoomPasscode" class="fb-field" placeholder="Room passcode" style="margin-bottom:7px;width:100%">
+          <button class="btn btn-sm" id="deleteRoomManualBtn" style="width:100%;background:#fff5f5;border:2.5px solid var(--primary);color:var(--primary-d)">🗑 Delete</button>
+          <div id="deleteRoomError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:5px;min-height:13px"></div>
+        </div>
+
+        <!-- Share invite (for active game, shown after joining) -->
+        <div id="sharePanel-active" style="display:none;background:var(--bl);border:2px solid var(--border);border-radius:14px;padding:12px">
+          <div style="font-family:'Bubblegum Sans',cursive;font-size:14px;color:var(--primary);margin-bottom:8px">🔐 Share Invite</div>
           <div style="display:flex;gap:6px;margin-bottom:6px">
-            <input type="password" id="cfgExportPasscode" class="fb-field" placeholder="Encryption passcode (min 4 chars)" style="flex:1">
-            <button class="btn btn-sm" onclick="togglePwVis('cfgExportPasscode',this)" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);padding:4px 9px">👁</button>
+            <input type="password" id="passcode-active" class="fb-field" placeholder="Passcode (min 4 chars)" style="flex:1">
+            <button class="btn btn-hint btn-sm" onclick="generateInviteForRoom(roomCode, 'active')">Generate</button>
           </div>
-          <button class="btn btn-hint btn-sm" style="width:100%" onclick="exportFirebaseConfig()">🔐 Generate Encrypted Blob</button>
-          <div id="cfgExportResult" style="display:none;margin-top:8px">
-            <textarea id="cfgExportBlob" class="fb-textarea" rows="3" readonly style="font-size:10px;font-family:monospace;letter-spacing:0"></textarea>
-            <button class="btn btn-sm" onclick="copyFirebaseConfigBlob()" style="width:100%;margin-top:6px;background:var(--secondary);color:#fff;border:none">📋 Copy Blob</button>
+          <div id="inviteResult-active" style="display:none">
+            <textarea id="inviteBlob-active" class="fb-textarea" rows="2" readonly style="font-size:10px;font-family:monospace"></textarea>
+            <button class="btn btn-sm" onclick="copyInvite('active')" style="width:100%;margin-top:5px;background:var(--secondary);color:#fff;border:none">📋 Copy Invite</button>
           </div>
-          <div id="cfgExportError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:6px;min-height:14px"></div>
+          <div id="inviteError-active" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:4px;min-height:13px"></div>
         </div>
-      </div>
 
-      <!-- Import -->
-      <div>
-        <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:6px">📥 Import Config</div>
-        <textarea id="cfgImportBlob" class="fb-textarea" rows="2" placeholder="Paste encrypted blob here…"></textarea>
-        <div style="display:flex;gap:6px;margin-top:6px">
-          <input type="password" id="cfgImportPasscode" class="fb-field" placeholder="Passcode" style="flex:1">
-          <button class="btn btn-sm" onclick="togglePwVis('cfgImportPasscode',this)" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);padding:4px 9px">👁</button>
+      </div><!-- /fbLobby -->
+
+      <!-- Firebase config export/import -->
+      <details style="margin-top:10px">
+        <summary style="font-size:12px;font-weight:800;color:var(--muted);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px">
+          <span>▸</span> 🔐 Export / Import Firebase Config
+        </summary>
+        <div style="padding-top:10px">
+          <div id="cfgExportNoConfig" style="font-size:11px;color:var(--muted);font-weight:700;padding:7px;background:var(--bl);border:2px solid var(--border);border-radius:10px;text-align:center;margin-bottom:8px">
+            Connect Firebase above first.
+          </div>
+          <div id="cfgExportForm" style="display:none;margin-bottom:10px">
+            <div style="font-size:11px;font-weight:800;color:var(--text);margin-bottom:5px">📤 Export</div>
+            <div style="display:flex;gap:5px;margin-bottom:5px">
+              <input type="password" id="cfgExportPasscode" class="fb-field" placeholder="Encryption passcode" style="flex:1">
+              <button class="btn btn-sm" onclick="togglePwVis('cfgExportPasscode',this)" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);padding:4px 8px">👁</button>
+            </div>
+            <button class="btn btn-hint btn-sm" style="width:100%" onclick="exportFirebaseConfig()">🔐 Generate Blob</button>
+            <div id="cfgExportResult" style="display:none;margin-top:7px">
+              <textarea id="cfgExportBlob" class="fb-textarea" rows="2" readonly style="font-size:10px;font-family:monospace"></textarea>
+              <button class="btn btn-sm" onclick="copyFirebaseConfigBlob()" style="width:100%;margin-top:5px;background:var(--secondary);color:#fff;border:none">📋 Copy</button>
+            </div>
+            <div id="cfgExportError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:5px;min-height:13px"></div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:800;color:var(--text);margin-bottom:5px">📥 Import</div>
+            <textarea id="cfgImportBlob" class="fb-textarea" rows="2" placeholder="Paste encrypted blob…"></textarea>
+            <div style="display:flex;gap:5px;margin-top:5px">
+              <input type="password" id="cfgImportPasscode" class="fb-field" placeholder="Passcode" style="flex:1">
+              <button class="btn btn-sm" onclick="togglePwVis('cfgImportPasscode',this)" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);padding:4px 8px">👁</button>
+            </div>
+            <button class="btn btn-play btn-sm" style="width:100%;margin-top:7px" onclick="importFirebaseConfig()">🔓 Decrypt & Connect</button>
+            <div id="cfgImportError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:5px;min-height:13px"></div>
+            <div id="cfgImportSuccess" style="color:var(--secondary-d);font-size:11px;font-weight:700;margin-top:3px;min-height:13px"></div>
+          </div>
         </div>
-        <button class="btn btn-play btn-sm" style="width:100%;margin-top:8px" onclick="importFirebaseConfig()">🔓 Decrypt & Connect</button>
-        <div id="cfgImportError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:6px;min-height:14px"></div>
-        <div id="cfgImportSuccess" style="color:var(--secondary-d);font-size:11px;font-weight:700;margin-top:4px;min-height:14px"></div>
-      </div>
+      </details>
     </div>
 
     <!-- Reset -->
@@ -788,6 +894,7 @@ select.sel:focus{border-color:var(--primary)}
   <div class="site-title">🏰 Kingdom Chess</div>
   <div class="header-tools">
     <button class="icon-btn" id="soundToggle" title="Toggle sound">🔊</button>
+    <button class="icon-btn" id="onlineBtn" title="Online Play">🌐</button>
     <button class="icon-btn" id="badgesBtn" title="Badges">🏆</button>
     <button class="icon-btn" id="helpBtn" title="Piece Guide">❓</button>
     <button class="icon-btn" id="settingsBtn" title="Settings">⚙️</button>
@@ -797,7 +904,6 @@ select.sel:focus{border-color:var(--primary)}
 <!-- ═══ TAB BAR ═══ -->
 <nav class="tab-bar">
   <button class="tab-btn active" data-view="play">🎮 Play</button>
-  <button class="tab-btn" data-view="online">🌐 Online</button>
 </nav>
 
 <!-- ═══ MAIN ═══ -->
@@ -915,152 +1021,28 @@ select.sel:focus{border-color:var(--primary)}
       </div><!-- /controls column -->
     </div><!-- /panelPlay -->
 
-    <!-- ── ONLINE PANEL ── -->
-    <div id="panelOnline" class="panel-view online-panel">
-
-      <!-- ① FIREBASE CONFIG CARD -->
-      <div class="pc" id="fbConfigCard">
-        <div class="ptitle" style="justify-content:space-between">
-          <span>🔥 Firebase</span>
-          <span id="fbStatusBadge" class="conn-badge disconnected"><span class="conn-dot"></span> Not connected</span>
-        </div>
-        <div id="fbConfigSummary" style="display:none;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px">
-          <span style="color:var(--secondary-d)">🔥 Firebase connected</span>
-          <button class="btn btn-sm" id="fbEditBtn" style="background:var(--bl);border:2px solid var(--border);color:var(--text);font-size:11px;padding:3px 10px;margin-left:8px">✏️ Edit</button>
-          <button class="btn btn-sm" id="fbClearBtn" style="background:#fff5f5;border:2px solid var(--primary);color:var(--primary-d);font-size:11px;padding:3px 10px;margin-left:4px">🗑 Clear</button>
-        </div>
-        <div id="fbConfigForm">
-          <p style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:10px;line-height:1.6">
-            Paste your <strong>Firebase config</strong> from <strong>Project Settings → Your apps → Web</strong>. Uses Firestore — no databaseURL needed!
-          </p>
-          <textarea id="fbConfigPaste" class="fb-textarea" rows="3" placeholder='Paste config JSON here…'></textarea>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">
-            <input class="fb-field" id="fbApiKey"     placeholder="apiKey *"    type="password">
-            <input class="fb-field" id="fbProjectId"  placeholder="projectId *" type="text">
-            <input class="fb-field" id="fbAuthDomain" placeholder="authDomain"  type="text">
-            <input class="fb-field" id="fbAppId"      placeholder="appId"       type="text">
-          </div>
-          <div style="display:flex;gap:7px;margin-top:10px">
-            <button class="btn btn-play btn-sm" id="fbSaveConfigBtn" style="flex:1">💾 Save & Connect</button>
-            <button class="btn btn-sm" id="fbCancelEditBtn" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);display:none">✕</button>
-          </div>
-          <div id="fbConfigError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:6px;min-height:16px"></div>
-        </div>
-      </div>
-
-      <!-- ② LOBBY (shown when Firebase is ready) -->
-      <div id="fbLobby" style="display:none;flex-direction:column;gap:10px">
-
-        <!-- Create room -->
-        <div class="pc">
-          <div class="ob-title">🏠 Create a Room</div>
-          <!-- Side selection for host -->
-          <div style="font-size:11px;font-weight:800;color:var(--muted);margin-bottom:6px">⚔️ You play as:</div>
-          <div class="side-picker" id="onlineSidePicker">
-            <button class="side-btn active-w" id="onlineSideW" onclick="setOnlineSide('w')">
-              <span class="side-btn-icon">♔</span>White
-            </button>
-            <button class="side-btn" id="onlineSideB" onclick="setOnlineSide('b')">
-              <span class="side-btn-icon">♚</span>Black
-            </button>
-          </div>
-          <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px">
-            <div class="sw"><select id="onlineTimeSelect" class="sel">
-              <option value="3">3 min</option><option value="5" selected>5 min</option><option value="10">10 min</option>
-            </select></div>
-            <div class="sw"><select id="onlineIncrSelect" class="sel">
-              <option value="0">+0s</option><option value="5">+5s</option><option value="10" selected>+10s</option><option value="30">+30s</option>
-            </select></div>
-            <label class="toggle-wrap">
-              <input type="checkbox" id="onlineTimerToggle" checked>
-              <span class="toggle-track"><span class="toggle-thumb"></span></span>
-              <span style="font-weight:800;font-size:11px">Timer</span>
-            </label>
-          </div>
-          <div style="display:flex;gap:7px;margin-bottom:8px">
-            <input type="password" id="newRoomPasscode" class="fb-field" placeholder="Room passcode (required — needed to delete)" style="flex:1" required>
-            <button type="button" class="btn btn-sm" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);padding:4px 10px;font-size:13px" onclick="togglePwVis('newRoomPasscode',this)" title="Show/hide">👁</button>
-          </div>
-          <button class="btn btn-play" id="createRoomBtn" style="width:100%">🏠 Create Room</button>
-          <div id="createRoomError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:6px;min-height:14px"></div>
-        </div>
-
-        <!-- Lobby list -->
-        <div class="pc">
-          <div class="ob-title" style="justify-content:space-between">
-            <span>🌐 Available Rooms</span>
-            <button class="btn btn-sm" id="refreshLobbyBtn" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);font-size:11px;padding:4px 10px">↺ Refresh</button>
-          </div>
-          <div id="lobbyList" style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
-            <div class="lobby-empty">Loading rooms…</div>
-          </div>
-        </div>
-
-        <!-- Manual join by code -->
-        <div class="pc">
-          <div class="ob-title">✍️ Join by Code</div>
-          <input type="text" id="joinCodeInput" class="room-input" maxlength="6" placeholder="ABCDEF" autocomplete="off" spellcheck="false">
-          <button class="btn btn-play" id="joinRoomBtn" style="width:100%;margin-top:8px">🤝 Join</button>
-          <div id="joinError" style="color:var(--primary-d);font-size:12px;font-weight:700;text-align:center;margin-top:6px;min-height:18px"></div>
-        </div>
-
-        <!-- Import encrypted invite -->
-        <div class="pc">
-          <div class="ob-title">🔐 Import Invite</div>
-          <textarea id="importBlob" class="fb-textarea" rows="2" placeholder="Paste encrypted invite…"></textarea>
-          <input type="password" id="importPasscode" class="fb-field" placeholder="Passcode" style="margin-top:7px;width:100%">
-          <button class="btn btn-play" id="importJoinBtn" style="width:100%;margin-top:8px">🔐 Decrypt & Join</button>
-        </div>
-
-        <!-- Manual room deletion by passcode -->
-        <div class="pc">
-          <div class="ob-title">🗑 Delete Room</div>
-          <p style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:8px">Delete any room if you know its passcode.</p>
-          <input type="text" id="deleteRoomCode" class="room-input" maxlength="6" placeholder="ABCDEF" style="margin-bottom:7px" autocomplete="off" spellcheck="false">
-          <input type="password" id="deleteRoomPasscode" class="fb-field" placeholder="Room passcode" style="margin-bottom:8px;width:100%">
-          <button class="btn btn-sm" id="deleteRoomManualBtn" style="width:100%;background:#fff5f5;border:2.5px solid var(--primary);color:var(--primary-d)">🗑 Delete Room</button>
-          <div id="deleteRoomError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:6px;min-height:14px"></div>
-        </div>
-
-      </div><!-- /fbLobby -->
-
-      <!-- ③ ACTIVE GAME STATUS -->
-      <div class="pc" id="fbActiveSection" style="display:none">
-        <div class="ob-title">🌐 Online Game</div>
-        <div class="online-status-bar">
-          <span id="myColorChip" class="color-chip white">♔ You: White</span>
-          <span id="opponentConnBadge" class="conn-badge waiting"><span class="conn-dot"></span> Waiting…</span>
-        </div>
-        <div style="margin-top:8px;font-size:12px;font-weight:700;color:var(--muted);text-align:center">
-          Room: <strong id="activeRoomCode" style="color:var(--primary);letter-spacing:2px;cursor:pointer" onclick="copyCode(roomCode)" title="Tap to copy">------</strong> 📋
-        </div>
-        <!-- Passcode reveal for host -->
-        <div id="activePasscodeRow" style="display:none;margin-top:6px;background:var(--bl);border:2px solid var(--border);border-radius:12px;padding:8px 12px;font-size:12px;font-weight:700;text-align:center">
-          🔑 Passcode: <span id="activePasscodeSpan" style="color:var(--primary);letter-spacing:2px">••••••</span>
-          <button class="btn btn-sm" style="margin-left:8px;background:var(--card);border:2px solid var(--border);color:var(--muted);padding:2px 8px;font-size:11px" onclick="togglePwVis('activePasscodeSpan',this,true)">👁 Show</button>
-        </div>
-        <!-- Share invite from active game -->
-        <div style="margin-top:8px">
-          <button class="btn btn-hint btn-sm" style="width:100%" onclick="toggleSharePanel('active')">🔐 Share Invite</button>
-          <div id="sharePanel-active" style="display:none;margin-top:8px;background:var(--bl);border:2px solid var(--border);border-radius:12px;padding:10px">
-            <div style="display:flex;gap:6px;margin-bottom:6px">
-              <input type="password" id="passcode-active" class="fb-field" placeholder="Passcode (min 4 chars)" style="flex:1">
-              <button class="btn btn-hint btn-sm" onclick="generateInviteForRoom(roomCode, 'active')">Generate</button>
-            </div>
-            <div id="inviteResult-active" style="display:none">
-              <textarea id="inviteBlob-active" class="fb-textarea" rows="2" readonly style="font-size:10px;font-family:monospace"></textarea>
-              <button class="btn btn-sm" onclick="copyInvite('active')" style="width:100%;margin-top:5px;background:var(--secondary);color:#fff;border:none">📋 Copy Invite</button>
-            </div>
-            <div id="inviteError-active" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:4px;min-height:14px"></div>
-          </div>
-        </div>
-        <button class="btn btn-undo btn-sm" id="leaveRoomBtn" style="width:100%;margin-top:10px">🚪 Leave Room</button>
-      </div>
-
-    </div><!-- /panelOnline -->
-
   </div><!-- /panel-col -->
 </div><!-- /app-shell -->
+
+<!-- Floating Online Game Status Card (shown when in an online game) -->
+<div id="onlineStatusCard" style="display:none;position:fixed;bottom:80px;right:16px;z-index:300;width:220px">
+  <div class="pc" style="box-shadow:0 8px 32px rgba(0,0,0,.22);border:2.5px solid var(--border)">
+    <div class="ob-title" style="font-size:13px;margin-bottom:8px">🌐 Online Game</div>
+    <div class="online-status-bar" style="flex-direction:column;gap:5px;align-items:flex-start">
+      <span id="myColorChip" class="color-chip white">♔ You: White</span>
+      <span id="opponentConnBadge" class="conn-badge waiting"><span class="conn-dot"></span> Waiting…</span>
+    </div>
+    <div style="margin-top:8px;font-size:11px;font-weight:700;color:var(--muted);text-align:center">
+      Room: <strong id="activeRoomCode" style="color:var(--primary);letter-spacing:2px;cursor:pointer" onclick="copyCode(roomCode)" title="Tap to copy">------</strong> 📋
+    </div>
+    <div id="activePasscodeRow" style="display:none;margin-top:6px;font-size:11px;font-weight:700;text-align:center;color:var(--muted)">
+      🔑 <span id="activePasscodeSpan" data-pw="">••••••</span>
+      <button class="btn btn-sm" style="margin-left:4px;background:var(--card);border:2px solid var(--border);color:var(--muted);padding:1px 7px;font-size:10px" onclick="togglePwVis('activePasscodeSpan',this,true)">👁</button>
+    </div>
+    <button class="btn btn-undo btn-sm" id="leaveRoomBtn" style="width:100%;margin-top:10px;font-size:11px">🚪 Leave Room</button>
+    <button class="btn btn-hint btn-sm" style="width:100%;margin-top:5px;font-size:11px" onclick="openSettings('online')">⚙️ Room Options</button>
+  </div>
+</div>
 
 <script>
 "use strict";
@@ -1322,16 +1304,15 @@ function applyTheme(theme,save=true){
 }
 
 // Settings modal open/close
-function openSettings(){
+function openSettings(section=''){
   const s=loadSettings();
   document.getElementById('settingTimer').checked=s.timerEnabled;
   document.getElementById('settingTooltips').checked=s.tooltipsEnabled;
   document.getElementById('settingSound').checked=s.soundEnabled;
-  // Refresh Firebase export section visibility
+  // Refresh Firebase export section
   const hasCfg=!!(loadStoredConfig()?.apiKey);
   document.getElementById('cfgExportNoConfig').style.display=hasCfg?'none':'block';
   document.getElementById('cfgExportForm').style.display=hasCfg?'block':'none';
-  // Clear stale state
   document.getElementById('cfgExportPasscode').value='';
   document.getElementById('cfgExportResult').style.display='none';
   document.getElementById('cfgExportError').textContent='';
@@ -1340,7 +1321,17 @@ function openSettings(){
   document.getElementById('cfgImportError').textContent='';
   document.getElementById('cfgImportSuccess').textContent='';
   document.getElementById('settingsOverlay').classList.add('open');
+  // Scroll to section if requested
+  if(section==='online'){
+    setTimeout(()=>{
+      const el=document.getElementById('settingsOnlineSection');
+      if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+    },120);
+  }
 }
+
+// Wire online icon button
+document.getElementById('onlineBtn').addEventListener('click',()=>openSettings('online'));
 
 async function exportFirebaseConfig(){
   const errEl=document.getElementById('cfgExportError');
@@ -1580,21 +1571,26 @@ function saveAndConnect(){
 function renderConfigUI(){
   const cfg=loadStoredConfig();
   const form=document.getElementById('fbConfigForm');
-  const summary=document.getElementById('fbConfigSummary');
   const badge=document.getElementById('fbStatusBadge');
+  const editBtn=document.getElementById('fbEditBtn');
+  const clearBtn=document.getElementById('fbClearBtn');
   const lobby=document.getElementById('fbLobby');
   if(cfg&&cfg.apiKey&&cfg.projectId){
-    form.style.display='none';summary.style.display='block';
+    form.style.display='none';
     badge.className='conn-badge connected';
-    badge.innerHTML='<span class="conn-dot"></span> Configured';
-    lobby.style.display='flex';
+    badge.innerHTML='<span class="conn-dot"></span> Connected';
+    if(editBtn)editBtn.style.display='inline-flex';
+    if(clearBtn)clearBtn.style.display='inline-flex';
+    if(lobby&&!onlineMode) lobby.style.display='flex';
     fbInitFromConfig(cfg);
     startLobbyListener();
   }else{
-    form.style.display='block';summary.style.display='none';
+    form.style.display='block';
     badge.className='conn-badge disconnected';
     badge.innerHTML='<span class="conn-dot"></span> Not connected';
-    if(lobby)lobby.style.display='none';
+    if(editBtn)editBtn.style.display='none';
+    if(clearBtn)clearBtn.style.display='none';
+    if(lobby) lobby.style.display='none';
   }
 }
 
@@ -1947,14 +1943,19 @@ function restoreGameStateLocal(gs){
 }
 
 function showActiveOnlineUI(){
+  // Show floating status card on the play tab
+  document.getElementById('onlineStatusCard').style.display='block';
+  // Hide lobby inside settings
   document.getElementById('fbLobby').style.display='none';
-  document.getElementById('fbActiveSection').style.display='block';
+  // Show share panel option inside settings
+  const sharePanel=document.getElementById('sharePanel-active');
+  if(sharePanel) sharePanel.style.display='block';
   const chip=document.getElementById('myColorChip');
   chip.className='color-chip '+(myColor==='w'?'white':'black');
   chip.textContent=myColor==='w'?'♔ You: White':'♚ You: Black';
   document.getElementById('activeRoomCode').textContent=roomCode;
-  // Show passcode row — read from sessionStorage (available for the creator's session)
-  const storedPw=sessionStorage.getItem('kchess-room-passcode');
+  // Show passcode if creator has it in sessionStorage
+  const storedPw=sessionStorage.getItem('kchess-room-passcode')||localStorage.getItem('kchess-room-passcode');
   const pwRow=document.getElementById('activePasscodeRow');
   if(storedPw){
     pwRow.style.display='block';
@@ -1964,6 +1965,9 @@ function showActiveOnlineUI(){
     pwRow.style.display='none';
   }
   updateOpponentBadge();
+  // Switch to Play tab and close settings
+  switchView('play');
+  closeSettings();
 }
 
 // Toggle password visibility for any input or span
@@ -2035,8 +2039,11 @@ function detachAndReset(){
   onlineMode=false;roomCode='';myColor='w';fbMovesSeen=new Set();
   document.querySelector('.board-col').classList.remove('board-flipped');
   clearSession();
-  try{sessionStorage.removeItem('kchess-room-passcode');}catch(e){}
-  document.getElementById('fbActiveSection').style.display='none';
+  try{sessionStorage.removeItem('kchess-room-passcode');localStorage.removeItem('kchess-room-passcode');}catch(e){}
+  // Hide floating card, hide share panel, show lobby
+  document.getElementById('onlineStatusCard').style.display='none';
+  const sharePanel=document.getElementById('sharePanel-active');
+  if(sharePanel) sharePanel.style.display='none';
   document.getElementById('fbLobby').style.display='flex';
   unsubLobby=null;
   startLobbyListener();
@@ -2891,7 +2898,6 @@ function switchView(name){
   document.querySelectorAll('.panel-view').forEach(v=>v.classList.toggle('active',v.id==='panel'+name.charAt(0).toUpperCase()+name.slice(1)));
   if(prev==='play'&&name!=='play')pauseClock();
   if(prev!=='play'&&name==='play')resumeClock();
-  if(name==='online')renderConfigUI();
 }
 
 document.querySelectorAll('.tab-btn').forEach(btn=>btn.addEventListener('click',()=>switchView(btn.dataset.view)));
@@ -2920,7 +2926,6 @@ document.getElementById('fbConfigPaste').addEventListener('input', ()=>{
 });
 document.getElementById('fbEditBtn').addEventListener('click', ()=>{
   document.getElementById('fbConfigForm').style.display='block';
-  document.getElementById('fbConfigSummary').style.display='none';
   document.getElementById('fbCancelEditBtn').style.display='inline-flex';
   const cfg=loadStoredConfig()||{};
   if(cfg.apiKey)      document.getElementById('fbApiKey').value      = cfg.apiKey;
@@ -3023,6 +3028,7 @@ function renderLostPieces(){
 buildBoard();
 loadBadges();
 applyAllSettings();
+renderConfigUI(); // init Firebase connection state in settings
 document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('active',s.dataset.theme===document.documentElement.dataset.theme));
 // Initialize the board synchronously so pieces render immediately
 startNewGame();
