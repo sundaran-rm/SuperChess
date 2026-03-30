@@ -1368,8 +1368,11 @@ let pendingPromo=null;
 // FIREBASE — FULL ROOM SYSTEM v4
 // ══════════════════════════════════════════════
 const FB_STORAGE_KEY   = 'kchess-fb-config';
-const SESSION_KEY      = 'kchess-session';
-const GAME_STATE_KEY   = 'kchess-gamestate';
+const SESSION_KEY      = 'kchess-session';    // localStorage — survives browser close
+const GAME_STATE_KEY   = 'kchess-gamestate';  // localStorage — survives browser close
+const PLAYER_TOKEN_KEY = 'kchess-player-token'; // persistent identity across sessions
+const HEARTBEAT_INTERVAL_MS = 20000; // 20 seconds
+const STALE_THRESHOLD_MS    = 60000; // 60 seconds — player considered disconnected
 
 let fbApp=null, fbFs=null, fbReady=false;
 let onlineMode=false;
@@ -1381,11 +1384,17 @@ let opponentOnline=false;
 let mySessionId='';
 let savedFbConfig=null;
 let unsubRoom=null, unsubMoves=null, unsubLobby=null;
+let heartbeatInterval=null; // setInterval handle for heartbeat
 
+// Persistent player token — stored in localStorage so it survives browser close/reopen.
+// This is the key that lets a returning player reclaim their slot in a room.
 function getOrCreateSessionId(){
-  let sid=sessionStorage.getItem('kchess-sid');
-  if(!sid){sid='s'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);sessionStorage.setItem('kchess-sid',sid);}
-  return sid;
+  let token=localStorage.getItem(PLAYER_TOKEN_KEY);
+  if(!token){
+    token='p'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+    localStorage.setItem(PLAYER_TOKEN_KEY,token);
+  }
+  return token;
 }
 
 async function sha256(str){
@@ -1517,35 +1526,43 @@ function renderLobby(snap,THREE_DAYS=3*24*60*60*1000){
     list.innerHTML='<div class="lobby-empty">No open rooms — create one!</div>';return;
   }
   rooms.forEach(({code,data:r})=>{
-    const playerCount=Object.keys(r.players||{}).length;
-    const isFull=playerCount>=2;
-    const isPlaying=r.status==='playing';
-    const myRoom=Object.keys(r.players||{}).includes(mySessionId);
-    const isEmpty=playerCount===0;
+    const now=Date.now();
+    const playerEntries=Object.entries(r.players||{});
+    const activePlayers=playerEntries.filter(([,p])=>!p.lastSeen||(now-p.lastSeen)<=STALE_THRESHOLD_MS);
+    const stalePlayers=playerEntries.filter(([,p])=>p.lastSeen&&(now-p.lastSeen)>STALE_THRESHOLD_MS);
+    const playerCount=playerEntries.length;
+    const activeCount=activePlayers.length;
+    const isFull=activeCount>=2; // based on active (non-stale) players
+    const isPlaying=r.status==='playing'&&activeCount>=1;
+    const myRoom=playerEntries.some(([sid])=>sid===mySessionId);
+    const hasStale=stalePlayers.length>0;
     const cfg=r.config||{};
     const timeLabel=cfg.timeMin?(cfg.timeMin+'min'+(cfg.incrSec?'+'+cfg.incrSec+'s':'')):'?';
-    // Expiry countdown if empty
+    const isEmpty=playerCount===0;
     let expiryNote='';
     if(isEmpty&&r.emptyAt){
       const daysLeft=Math.max(0,Math.ceil((THREE_DAYS-(now-r.emptyAt))/(24*60*60*1000)));
       expiryNote=`<span style="color:var(--primary-d);font-size:10px"> · expires in ${daysLeft}d</span>`;
     }
+    const staleNote=hasStale?`<span style="color:var(--accent-d);font-size:10px"> · ${stalePlayers.length} disconnected</span>`:'';
+    const statusLabel=isEmpty?'Empty':isPlaying?'In game':'Waiting';
     const takenColors=r.takenColors||[];
     const availableColor=!takenColors.includes('w')?'♔ White':(!takenColors.includes('b')?'♚ Black':'Full');
+    const canJoin=!isFull||hasStale; // can join if room has room or has stale players to evict
     const card=document.createElement('div');
     card.className='lobby-room-card';
     card.innerHTML=`
       <div class="lobby-room-row">
         <div>
           <div class="lobby-room-code" onclick="copyCode('${code}')" style="cursor:pointer" title="Tap to copy">${code} <span style="font-size:11px">📋</span></div>
-          <div class="lobby-room-meta">⏱ ${timeLabel} · ${playerCount}/2 · ${isEmpty?'Empty':isPlaying?'In game':'Waiting'}${expiryNote}</div>
+          <div class="lobby-room-meta">⏱ ${timeLabel} · ${activeCount}/${playerCount>2?playerCount:2} · ${statusLabel}${expiryNote}${staleNote}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
-          <span class="lobby-badge ${isFull?'full':isPlaying?'playing':'waiting'}">${isFull?'Full':isPlaying?'Playing':'Open'}</span>
+          <span class="lobby-badge ${isFull&&!hasStale?'full':isPlaying?'playing':'waiting'}">${isFull&&!hasStale?'Full':isPlaying?'Playing':'Open'}</span>
           ${myRoom
             ?`<button class="btn btn-play btn-sm" onclick="rejoinRoom('${code}')">↩ Rejoin</button>`
-            :(!isFull
-              ?`<button class="btn btn-play btn-sm" onclick="joinRoomByCode('${code}')" title="Join as ${availableColor}">Join as ${availableColor}</button>`
+            :(canJoin
+              ?`<button class="btn btn-play btn-sm" onclick="joinRoomByCode('${code}')" title="Join as ${availableColor}">${hasStale?'🔄 Join':'Join as '+availableColor}</button>`
               :`<span style="font-size:11px;color:var(--muted);font-weight:700">Full</span>`)}
         </div>
       </div>`;
@@ -1553,9 +1570,9 @@ function renderLobby(snap,THREE_DAYS=3*24*60*60*1000){
   });
 }
 
-function saveSession(){try{sessionStorage.setItem(SESSION_KEY,JSON.stringify({roomCode,myColor,mySessionId}));}catch(e){}}
-function clearSession(){try{sessionStorage.removeItem(SESSION_KEY);sessionStorage.removeItem(GAME_STATE_KEY);}catch(e){}}
-function loadSession(){try{const r=sessionStorage.getItem(SESSION_KEY);return r?JSON.parse(r):null;}catch(e){return null;}}
+function saveSession(){try{localStorage.setItem(SESSION_KEY,JSON.stringify({roomCode,myColor,mySessionId}));}catch(e){}}
+function clearSession(){try{localStorage.removeItem(SESSION_KEY);localStorage.removeItem(GAME_STATE_KEY);}catch(e){}}
+function loadSession(){try{const r=localStorage.getItem(SESSION_KEY);return r?JSON.parse(r):null;}catch(e){return null;}}
 
 function saveGameStateLocal(){
   if(!onlineMode)return;
@@ -1565,10 +1582,10 @@ function saveGameStateLocal(){
       moveHistory:moveHistory.map(m=>({fromR:m.fromR,fromC:m.fromC,toR:m.toR,toC:m.toC,
         piece:m.piece,capture:m.capture,enPassant:m.enPassant,doublePawn:m.doublePawn,
         promotion:m.promotion,promotionPiece:m.promotionPiece,castle:m.castle,san:m.san}))};
-    sessionStorage.setItem(GAME_STATE_KEY,JSON.stringify(gs));
+    localStorage.setItem(GAME_STATE_KEY,JSON.stringify(gs));
   }catch(e){}
 }
-function loadGameStateLocal(){try{const r=sessionStorage.getItem(GAME_STATE_KEY);return r?JSON.parse(r):null;}catch(e){return null;}}
+function loadGameStateLocal(){try{const r=localStorage.getItem(GAME_STATE_KEY);return r?JSON.parse(r):null;}catch(e){return null;}}
 
 function serializeGameState(){
   return{board,turn,castlingRights,enPassantTarget:enPassantTarget||null,
@@ -1595,7 +1612,7 @@ async function createRoom(){
     await fbFs.collection('lobby').doc(code).set({
       config:{timeMin:tMin,incrSec:incr,timerEnabled:timerOn,createdAt:Date.now()},
       status:'waiting',
-      players:{[mySessionId]:{color:hostColor,online:true,joinedAt:Date.now()}},
+      players:{[mySessionId]:{color:hostColor,online:true,joinedAt:Date.now(),lastSeen:Date.now()}},
       takenColors:[hostColor], // tracks which colors are assigned
       playerCount:1,passcodeHash,gameState:null,result:null,
       createdAt:Date.now(),emptyAt:null
@@ -1635,14 +1652,57 @@ async function joinRoom(){
     await fbFs.collection('lobby').doc(code).delete().catch(()=>{});
     errEl.textContent='❌ This room expired and has been removed.';return;
   }
-  const playerCount=Object.keys(room.players||{}).length;
+  const players=room.players||{};
+  let playerCount=Object.keys(players).length;
+
+  // ── Stale eviction: if room appears full, check lastSeen timestamps ──
+  if(playerCount>=2){
+    const now=Date.now();
+    const staleSids=Object.entries(players)
+      .filter(([sid,p])=>sid!==mySessionId&&p.lastSeen&&(now-p.lastSeen)>STALE_THRESHOLD_MS)
+      .map(([sid])=>sid);
+
+    if(staleSids.length>0){
+      // Evict stale players via a batch update
+      const evictUpdate={};
+      let newTakenColors=[...(room.takenColors||[])];
+      staleSids.forEach(sid=>{
+        evictUpdate[`players.${sid}`]=firebase.firestore.FieldValue.delete();
+        const staleColor=players[sid]?.color;
+        if(staleColor) newTakenColors=newTakenColors.filter(c=>c!==staleColor);
+      });
+      playerCount-=staleSids.length;
+      evictUpdate.playerCount=playerCount;
+      evictUpdate.takenColors=newTakenColors;
+      if(playerCount<2) evictUpdate.status='waiting';
+      try{
+        await fbFs.collection('lobby').doc(code).update(evictUpdate);
+        // Re-read room data after eviction
+        const fresh=await fbFs.collection('lobby').doc(code).get();
+        if(fresh.exists) Object.assign(room,fresh.data());
+        playerCount=Object.keys(room.players||{}).length;
+      }catch(e){ console.warn('[Eviction error]',e); }
+    }
+  }
+
+  // Check if the returning player already has a slot (token match)
+  if(players[mySessionId]){
+    // Same token — this player was in the room before, just rejoin
+    myColor=players[mySessionId].color;
+    roomCode=code;roomRef=fbFs.collection('lobby').doc(code);
+    await roomRef.update({[`players.${mySessionId}.online`]:true,[`players.${mySessionId}.lastSeen`]:Date.now()});
+    saveSession();
+    onOnlineGameStart(true);
+    return;
+  }
+
   if(playerCount>=2){errEl.textContent='❌ Room is full (2/2 players).';return;}
   // Assign the remaining color (opposite of what's taken)
   const takenColors=room.takenColors||['w'];
   const joinerColor=takenColors.includes('w')&&!takenColors.includes('b')?'b':'w';
   roomCode=code;myColor=joinerColor;roomRef=fbFs.collection('lobby').doc(code);
   await roomRef.update({
-    [`players.${mySessionId}`]:{color:joinerColor,online:true,joinedAt:Date.now()},
+    [`players.${mySessionId}`]:{color:joinerColor,online:true,joinedAt:Date.now(),lastSeen:Date.now()},
     takenColors:[...takenColors,joinerColor],
     playerCount:2,status:'playing',emptyAt:null
   });
@@ -1661,9 +1721,24 @@ async function rejoinRoom(code){
   if(!players[mySessionId])return;
   myColor=players[mySessionId].color;
   roomCode=code;roomRef=fbFs.collection('lobby').doc(code);
-  await roomRef.update({[`players.${mySessionId}.online`]:true});
+  await roomRef.update({[`players.${mySessionId}.online`]:true,[`players.${mySessionId}.lastSeen`]:Date.now()});
   saveSession();
   onOnlineGameStart(true);
+}
+
+function startHeartbeat(){
+  stopHeartbeat();
+  if(!roomRef||!mySessionId)return;
+  // Write immediately, then every 20s
+  roomRef.update({[`players.${mySessionId}.lastSeen`]:Date.now(),[`players.${mySessionId}.online`]:true}).catch(()=>{});
+  heartbeatInterval=setInterval(()=>{
+    if(!roomRef||!mySessionId){stopHeartbeat();return;}
+    roomRef.update({[`players.${mySessionId}.lastSeen`]:Date.now(),[`players.${mySessionId}.online`]:true}).catch(()=>{});
+  },HEARTBEAT_INTERVAL_MS);
+}
+
+function stopHeartbeat(){
+  if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
 }
 
 async function onOnlineGameStart(isRestore){
@@ -1746,6 +1821,7 @@ async function onOnlineGameStart(isRestore){
 
   window.removeEventListener('beforeunload',_markMeOffline);
   window.addEventListener('beforeunload',_markMeOffline);
+  startHeartbeat(); // keep lastSeen fresh every 20s
 }
 
 function restoreGameStateLocal(gs){
@@ -1847,6 +1923,7 @@ async function _decrementAndMaybeDelete(){
 }
 
 function detachAndReset(){
+  stopHeartbeat();
   if(unsubRoom){unsubRoom();unsubRoom=null;}
   if(unsubMoves){unsubMoves();unsubMoves=null;}
   window.removeEventListener('beforeunload',_markMeOffline);
