@@ -672,6 +672,47 @@ select.sel:focus{border-color:var(--primary)}
       </div>
     </div>
 
+    <!-- Firebase Config Export/Import -->
+    <div class="settings-section" style="border-top:2px solid var(--border);padding-top:14px;margin-top:4px">
+      <div class="settings-label">🔥 Firebase Connection</div>
+      <p style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:10px;line-height:1.6">
+        Export your Firebase config as an encrypted blob to share with other devices or people. Import a blob to connect instantly.
+      </p>
+
+      <!-- Export -->
+      <div style="margin-bottom:12px">
+        <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:6px">📤 Export Config</div>
+        <div id="cfgExportNoConfig" style="font-size:11px;color:var(--muted);font-weight:700;padding:8px;background:var(--bl);border:2px solid var(--border);border-radius:10px;text-align:center">
+          No Firebase config saved yet. Set it up in the Online tab first.
+        </div>
+        <div id="cfgExportForm" style="display:none">
+          <div style="display:flex;gap:6px;margin-bottom:6px">
+            <input type="password" id="cfgExportPasscode" class="fb-field" placeholder="Encryption passcode (min 4 chars)" style="flex:1">
+            <button class="btn btn-sm" onclick="togglePwVis('cfgExportPasscode',this)" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);padding:4px 9px">👁</button>
+          </div>
+          <button class="btn btn-hint btn-sm" style="width:100%" onclick="exportFirebaseConfig()">🔐 Generate Encrypted Blob</button>
+          <div id="cfgExportResult" style="display:none;margin-top:8px">
+            <textarea id="cfgExportBlob" class="fb-textarea" rows="3" readonly style="font-size:10px;font-family:monospace;letter-spacing:0"></textarea>
+            <button class="btn btn-sm" onclick="copyFirebaseConfigBlob()" style="width:100%;margin-top:6px;background:var(--secondary);color:#fff;border:none">📋 Copy Blob</button>
+          </div>
+          <div id="cfgExportError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:6px;min-height:14px"></div>
+        </div>
+      </div>
+
+      <!-- Import -->
+      <div>
+        <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:6px">📥 Import Config</div>
+        <textarea id="cfgImportBlob" class="fb-textarea" rows="2" placeholder="Paste encrypted blob here…"></textarea>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <input type="password" id="cfgImportPasscode" class="fb-field" placeholder="Passcode" style="flex:1">
+          <button class="btn btn-sm" onclick="togglePwVis('cfgImportPasscode',this)" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);padding:4px 9px">👁</button>
+        </div>
+        <button class="btn btn-play btn-sm" style="width:100%;margin-top:8px" onclick="importFirebaseConfig()">🔓 Decrypt & Connect</button>
+        <div id="cfgImportError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:6px;min-height:14px"></div>
+        <div id="cfgImportSuccess" style="color:var(--secondary-d);font-size:11px;font-weight:700;margin-top:4px;min-height:14px"></div>
+      </div>
+    </div>
+
     <!-- Reset -->
     <div class="settings-section" style="border-top:2px solid var(--border);padding-top:14px;margin-top:4px">
       <button class="btn btn-sm" id="resetSettingsBtn" style="width:100%;background:#fff5f5;border:2.5px solid var(--primary);color:var(--primary-d)">
@@ -1286,7 +1327,70 @@ function openSettings(){
   document.getElementById('settingTimer').checked=s.timerEnabled;
   document.getElementById('settingTooltips').checked=s.tooltipsEnabled;
   document.getElementById('settingSound').checked=s.soundEnabled;
+  // Refresh Firebase export section visibility
+  const hasCfg=!!(loadStoredConfig()?.apiKey);
+  document.getElementById('cfgExportNoConfig').style.display=hasCfg?'none':'block';
+  document.getElementById('cfgExportForm').style.display=hasCfg?'block':'none';
+  // Clear stale state
+  document.getElementById('cfgExportPasscode').value='';
+  document.getElementById('cfgExportResult').style.display='none';
+  document.getElementById('cfgExportError').textContent='';
+  document.getElementById('cfgImportBlob').value='';
+  document.getElementById('cfgImportPasscode').value='';
+  document.getElementById('cfgImportError').textContent='';
+  document.getElementById('cfgImportSuccess').textContent='';
   document.getElementById('settingsOverlay').classList.add('open');
+}
+
+async function exportFirebaseConfig(){
+  const errEl=document.getElementById('cfgExportError');
+  errEl.textContent='';
+  const passcode=document.getElementById('cfgExportPasscode').value;
+  if(passcode.length<4){errEl.textContent='⚠️ Passcode must be at least 4 characters';return;}
+  const cfg=loadStoredConfig();
+  if(!cfg?.apiKey){errEl.textContent='⚠️ No Firebase config found';return;}
+  try{
+    const blob=await encryptData({config:cfg,version:2,type:'firebase-config'},passcode);
+    document.getElementById('cfgExportBlob').value=blob;
+    document.getElementById('cfgExportResult').style.display='block';
+  }catch(e){
+    errEl.textContent='❌ Encryption failed: '+e.message;
+  }
+}
+
+function copyFirebaseConfigBlob(){
+  const blob=document.getElementById('cfgExportBlob').value;
+  if(!blob)return;
+  navigator.clipboard?.writeText(blob).then(()=>{
+    showToast('📋 Config blob copied!','Share it with your device or friend');
+  });
+}
+
+async function importFirebaseConfig(){
+  const errEl=document.getElementById('cfgImportError');
+  const okEl=document.getElementById('cfgImportSuccess');
+  errEl.textContent=''; okEl.textContent='';
+  const blob=document.getElementById('cfgImportBlob').value.trim();
+  const passcode=document.getElementById('cfgImportPasscode').value;
+  if(!blob){errEl.textContent='⚠️ Paste the encrypted blob first';return;}
+  if(!passcode){errEl.textContent='⚠️ Enter the passcode';return;}
+  let payload;
+  try{payload=await decryptData(blob,passcode);}
+  catch(e){errEl.textContent='❌ Wrong passcode or corrupted blob';return;}
+  // Support both v1 (room invite blobs) and v2 (config-only blobs)
+  const cfg=payload.config;
+  if(!cfg?.apiKey||!cfg?.projectId){errEl.textContent='❌ Invalid config blob — missing apiKey or projectId';return;}
+  saveStoredConfig(cfg);
+  const ok=fbInitFromConfig(cfg);
+  if(!ok){errEl.textContent='❌ Firebase rejected the config — check apiKey and projectId';return;}
+  // Refresh Online tab config UI
+  renderConfigUI();
+  okEl.textContent='✅ Firebase connected! Switch to Online tab to create or join rooms.';
+  // Refresh export section
+  document.getElementById('cfgExportNoConfig').style.display='none';
+  document.getElementById('cfgExportForm').style.display='block';
+  document.getElementById('cfgImportBlob').value='';
+  document.getElementById('cfgImportPasscode').value='';
 }
 function closeSettings(){
   document.getElementById('settingsOverlay').classList.remove('open');
