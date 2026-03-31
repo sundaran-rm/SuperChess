@@ -139,20 +139,6 @@ body{
 .icon-btn{background:var(--card);border:2px solid var(--border);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;transition:transform .15s,box-shadow .15s;flex-shrink:0}
 .icon-btn:hover{transform:scale(1.1);box-shadow:0 4px 12px rgba(0,0,0,.12)}
 
-/* ══════════════ TAB BAR ══════════════ */
-.tab-bar{
-  display:flex;justify-content:center;gap:6px;
-  padding:8px 16px;flex-shrink:0;
-}
-.tab-btn{
-  font-family:'Bubblegum Sans',cursive;font-size:14px;
-  padding:7px 18px;border-radius:99px;border:2.5px solid var(--border);
-  background:var(--card);color:var(--text);cursor:pointer;
-  transition:all .18s;white-space:nowrap;
-}
-.tab-btn:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.1)}
-.tab-btn.active{background:var(--primary);border-color:var(--primary-d);color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.18)}
-
 /* ══════════════ THEME PICKER ══════════════ */
 .theme-picker-overlay{
   position:fixed;inset:0;background:rgba(0,0,0,.35);backdrop-filter:blur(4px);
@@ -546,6 +532,21 @@ select.sel:focus{border-color:var(--primary)}
 .ptip-icon img{width:36px;height:36px}
 .ptip-name{font-family:'Bubblegum Sans',cursive;font-size:14px;color:var(--primary);margin:2px 0}
 .ptip-desc{font-size:11px;color:var(--muted);font-weight:700;line-height:1.4}
+/* ══ ONLINE BOARD BAR ══ */
+.online-board-bar{display:none;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;margin-bottom:6px;background:linear-gradient(135deg,#1a56db14,#1a56db06);border:2px solid #1a56db44;border-radius:14px;cursor:pointer;transition:background .2s}
+.online-board-bar:hover{background:linear-gradient(135deg,#1a56db22,#1a56db0e)}
+.online-board-bar.active{display:flex}
+.obb-code{font-family:'Bubblegum Sans',cursive;font-size:16px;letter-spacing:2px;color:#1a56db;line-height:1}
+.obb-color-label{font-size:10px;font-weight:800;color:#4a7fe8;margin-top:1px}
+.obb-dot{width:7px;height:7px;border-radius:50%;background:#6b7280;flex-shrink:0}
+.obb-dot.on{background:#10b981;animation:connPulse 1.2s infinite}
+.obb-dot.off{background:#ef4444}
+/* Icon states */
+#onlineBtn{transition:color .2s,border-color .2s,box-shadow .2s}
+#onlineBtn.st-red{color:#ef4444;border-color:#fca5a5;box-shadow:0 0 0 2px #ef444422}
+#onlineBtn.st-green{color:#10b981;border-color:#6ee7b7;box-shadow:0 0 0 2px #10b98122}
+#onlineBtn.st-blue{color:#1a56db;border-color:#93c5fd;animation:pulse-blue .9s ease-in-out infinite alternate}
+@keyframes pulse-blue{from{box-shadow:0 0 0 2px #1a56db22}to{box-shadow:0 0 0 5px #1a56db44}}
 </style>
 <body>
 
@@ -652,6 +653,16 @@ select.sel:focus{border-color:var(--primary)}
       </div>
       <div class="settings-row">
         <div class="settings-row-info">
+          <div class="settings-row-title">🎯 Valid Move Hints</div>
+          <div class="settings-row-sub">Show dots on squares a piece can move to</div>
+        </div>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="settingValidMoves" onchange="applySettingValidMoves(this.checked)">
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-info">
           <div class="settings-row-title">💬 Piece Tooltips</div>
           <div class="settings-row-sub">Show piece info on hover</div>
         </div>
@@ -672,106 +683,47 @@ select.sel:focus{border-color:var(--primary)}
       </div>
     </div>
 
-    <!-- ── ONLINE SECTION ── -->
-    <div class="settings-section" id="settingsOnlineSection" style="border-top:2px solid var(--border);padding-top:14px;margin-top:4px">
-      <div class="settings-label">🌐 Online Play</div>
+    <!-- Reset -->
+    <div class="settings-section" style="border-top:2px solid var(--border);padding-top:14px;margin-top:4px">
+      <button class="btn btn-sm" id="resetSettingsBtn" style="width:100%;background:#fff5f5;border:2.5px solid var(--primary);color:var(--primary-d)">
+        🔄 Reset All Settings to Default
+      </button>
+    </div>
+  </div>
+</div>
 
-      <!-- Firebase connection status bar -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:8px 10px;background:var(--bl);border:2px solid var(--border);border-radius:12px">
-        <span id="fbStatusBadge" class="conn-badge disconnected" style="font-size:11px"><span class="conn-dot"></span> Not connected</span>
-        <div style="display:flex;gap:5px">
-          <button class="btn btn-sm" id="fbEditBtn" style="font-size:10px;padding:2px 8px;display:none">✏️ Edit</button>
-          <button class="btn btn-sm" id="fbClearBtn" style="font-size:10px;padding:2px 8px;background:#fff5f5;border:2px solid var(--primary);color:var(--primary-d);display:none">🗑</button>
-        </div>
-      </div>
+<!-- Online Play Modal -->
+<div id="onlineOverlay" class="overlay" onclick="if(event.target===this)closeOnlineSettings()">
+  <div class="settings-card">
+    <div class="settings-header">
+      <span style="font-family:'Bubblegum Sans',cursive;font-size:20px;color:#1a56db">🌐 Online Play</span>
+      <button class="icon-btn" onclick="closeOnlineSettings()" style="width:30px;height:30px;font-size:14px">✕</button>
+    </div>
 
-      <!-- Firebase config form (collapsed when connected) -->
-      <div id="fbConfigCard" style="margin-bottom:10px">
-        <div id="fbConfigForm">
-          <p style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:8px;line-height:1.5">
-            Paste your Firebase config from <strong>Project Settings → Your apps → Web</strong>.
-          </p>
-          <textarea id="fbConfigPaste" class="fb-textarea" rows="2" placeholder='Paste Firebase config JSON here…'></textarea>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:7px">
-            <input class="fb-field" id="fbApiKey"     placeholder="apiKey *"    type="password">
-            <input class="fb-field" id="fbProjectId"  placeholder="projectId *" type="text">
-            <input class="fb-field" id="fbAuthDomain" placeholder="authDomain"  type="text">
-            <input class="fb-field" id="fbAppId"      placeholder="appId"       type="text">
+    <!-- Active game section (shown while in a game) -->
+    <div id="activeGameSection" style="display:none">
+      <div class="settings-section">
+        <div class="settings-label">⚡ Active Game</div>
+        <div style="background:linear-gradient(135deg,#1a56db14,#1a56db06);border:2px solid #1a56db44;border-radius:14px;padding:12px;margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div>
+              <div style="font-family:'Bubblegum Sans',cursive;font-size:20px;letter-spacing:3px;color:#1a56db;cursor:pointer" onclick="copyCode(roomCode)" title="Tap to copy" id="activeRoomCode">------</div>
+              <span id="myColorChip" class="color-chip white" style="margin-top:3px;display:inline-flex">♔ You: White</span>
+            </div>
+            <span id="opponentConnBadge" class="conn-badge waiting"><span class="conn-dot"></span> Waiting…</span>
           </div>
-          <div style="display:flex;gap:6px;margin-top:8px">
-            <button class="btn btn-play btn-sm" id="fbSaveConfigBtn" style="flex:1">💾 Save & Connect</button>
-            <button class="btn btn-sm" id="fbCancelEditBtn" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);display:none">✕</button>
+          <div id="activePasscodeRow" style="display:none;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px">
+            🔑 Passcode: <span id="activePasscodeSpan" data-pw="" style="color:var(--primary);letter-spacing:1px">••••••</span>
+            <button class="btn btn-sm" onclick="togglePwVis('activePasscodeSpan',this,true)" style="margin-left:6px;padding:1px 7px;font-size:10px;border:2px solid var(--border);color:var(--muted)">👁</button>
           </div>
-          <div id="fbConfigError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:5px;min-height:14px"></div>
+          <button class="btn btn-undo btn-sm" id="leaveRoomBtn" style="width:100%">🚪 Leave Room</button>
         </div>
-      </div>
-
-      <!-- Lobby (shown when Firebase ready) -->
-      <div id="fbLobby" style="display:none;flex-direction:column;gap:10px">
-
-        <!-- Create room -->
-        <div style="background:var(--bl);border:2px solid var(--border);border-radius:14px;padding:12px">
-          <div style="font-family:'Bubblegum Sans',cursive;font-size:14px;color:var(--primary);margin-bottom:8px">🏠 Create a Room</div>
-          <div style="font-size:11px;font-weight:800;color:var(--muted);margin-bottom:5px">⚔️ You play as:</div>
-          <div class="side-picker" id="onlineSidePicker" style="margin-bottom:8px">
-            <button class="side-btn active-w" id="onlineSideW" onclick="setOnlineSide('w')"><span class="side-btn-icon">♔</span>White</button>
-            <button class="side-btn" id="onlineSideB" onclick="setOnlineSide('b')"><span class="side-btn-icon">♚</span>Black</button>
-          </div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
-            <div class="sw"><select id="onlineTimeSelect" class="sel"><option value="3">3 min</option><option value="5" selected>5 min</option><option value="10">10 min</option></select></div>
-            <div class="sw"><select id="onlineIncrSelect" class="sel"><option value="0">+0s</option><option value="5">+5s</option><option value="10" selected>+10s</option><option value="30">+30s</option></select></div>
-            <label class="toggle-wrap"><input type="checkbox" id="onlineTimerToggle" checked><span class="toggle-track"><span class="toggle-thumb"></span></span><span style="font-weight:800;font-size:11px">Timer</span></label>
-          </div>
-          <div style="display:flex;gap:6px;margin-bottom:8px">
-            <input type="password" id="newRoomPasscode" class="fb-field" placeholder="Room passcode (required)" style="flex:1">
-            <button type="button" class="btn btn-sm" onclick="togglePwVis('newRoomPasscode',this)" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);padding:4px 9px">👁</button>
-          </div>
-          <button class="btn btn-play btn-sm" id="createRoomBtn" style="width:100%">🏠 Create Room</button>
-          <div id="createRoomError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:5px;min-height:13px"></div>
-        </div>
-
-        <!-- Live lobby list -->
-        <div style="background:var(--bl);border:2px solid var(--border);border-radius:14px;padding:12px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-            <span style="font-family:'Bubblegum Sans',cursive;font-size:14px;color:var(--primary)">🌐 Open Rooms</span>
-            <button class="btn btn-sm" id="refreshLobbyBtn" style="font-size:10px;padding:3px 9px;background:var(--card);border:2px solid var(--border);color:var(--muted)">↺</button>
-          </div>
-          <div id="lobbyList" style="display:flex;flex-direction:column;gap:7px">
-            <div class="lobby-empty">Loading rooms…</div>
-          </div>
-        </div>
-
-        <!-- Join by code -->
-        <div style="background:var(--bl);border:2px solid var(--border);border-radius:14px;padding:12px">
-          <div style="font-family:'Bubblegum Sans',cursive;font-size:14px;color:var(--primary);margin-bottom:8px">✍️ Join by Code</div>
-          <input type="text" id="joinCodeInput" class="room-input" maxlength="6" placeholder="ABCDEF" autocomplete="off" spellcheck="false">
-          <button class="btn btn-play btn-sm" id="joinRoomBtn" style="width:100%;margin-top:7px">🤝 Join Room</button>
-          <div id="joinError" style="color:var(--primary-d);font-size:11px;font-weight:700;text-align:center;margin-top:5px;min-height:16px"></div>
-        </div>
-
-        <!-- Import invite -->
-        <div style="background:var(--bl);border:2px solid var(--border);border-radius:14px;padding:12px">
-          <div style="font-family:'Bubblegum Sans',cursive;font-size:14px;color:var(--primary);margin-bottom:8px">🔐 Import Invite</div>
-          <textarea id="importBlob" class="fb-textarea" rows="2" placeholder="Paste encrypted invite…"></textarea>
-          <input type="password" id="importPasscode" class="fb-field" placeholder="Passcode" style="margin-top:6px;width:100%">
-          <button class="btn btn-play btn-sm" id="importJoinBtn" style="width:100%;margin-top:7px">🔓 Decrypt & Join</button>
-        </div>
-
-        <!-- Delete room -->
-        <div style="background:var(--bl);border:2px solid var(--border);border-radius:14px;padding:12px">
-          <div style="font-family:'Bubblegum Sans',cursive;font-size:14px;color:var(--primary);margin-bottom:8px">🗑 Delete Room</div>
-          <input type="text" id="deleteRoomCode" class="room-input" maxlength="6" placeholder="Room code" style="margin-bottom:6px" autocomplete="off" spellcheck="false">
-          <input type="password" id="deleteRoomPasscode" class="fb-field" placeholder="Room passcode" style="margin-bottom:7px;width:100%">
-          <button class="btn btn-sm" id="deleteRoomManualBtn" style="width:100%;background:#fff5f5;border:2.5px solid var(--primary);color:var(--primary-d)">🗑 Delete</button>
-          <div id="deleteRoomError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:5px;min-height:13px"></div>
-        </div>
-
-        <!-- Share invite (for active game, shown after joining) -->
-        <div id="sharePanel-active" style="display:none;background:var(--bl);border:2px solid var(--border);border-radius:14px;padding:12px">
-          <div style="font-family:'Bubblegum Sans',cursive;font-size:14px;color:var(--primary);margin-bottom:8px">🔐 Share Invite</div>
+        <!-- Share invite -->
+        <div style="background:var(--bl);border:2px solid var(--border);border-radius:14px;padding:10px">
+          <div style="font-size:11px;font-weight:800;color:var(--muted);margin-bottom:7px">🔐 Share Invite</div>
           <div style="display:flex;gap:6px;margin-bottom:6px">
             <input type="password" id="passcode-active" class="fb-field" placeholder="Passcode (min 4 chars)" style="flex:1">
-            <button class="btn btn-hint btn-sm" onclick="generateInviteForRoom(roomCode, 'active')">Generate</button>
+            <button class="btn btn-hint btn-sm" onclick="generateInviteForRoom(roomCode,'active')">Generate</button>
           </div>
           <div id="inviteResult-active" style="display:none">
             <textarea id="inviteBlob-active" class="fb-textarea" rows="2" readonly style="font-size:10px;font-family:monospace"></textarea>
@@ -779,32 +731,105 @@ select.sel:focus{border-color:var(--primary)}
           </div>
           <div id="inviteError-active" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:4px;min-height:13px"></div>
         </div>
+      </div>
+    </div>
 
-      </div><!-- /fbLobby -->
+    <!-- Firebase connection -->
+    <div class="settings-section" id="fbConfigCard">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:8px 10px;background:var(--bl);border:2px solid var(--border);border-radius:12px">
+        <span id="fbStatusBadge" class="conn-badge disconnected" style="font-size:11px"><span class="conn-dot"></span> Not connected</span>
+        <div style="display:flex;gap:5px">
+          <button class="btn btn-sm" id="fbEditBtn" style="font-size:10px;padding:2px 8px;display:none">✏️ Edit</button>
+          <button class="btn btn-sm" id="fbClearBtn" style="font-size:10px;padding:2px 8px;background:#fff5f5;border:2px solid var(--primary);color:var(--primary-d);display:none">🗑</button>
+        </div>
+      </div>
+      <div id="fbConfigForm">
+        <p style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:8px;line-height:1.5">Paste your Firebase config from <strong>Project Settings → Your apps → Web</strong>.</p>
+        <textarea id="fbConfigPaste" class="fb-textarea" rows="2" placeholder='Paste Firebase config JSON here…'></textarea>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:7px">
+          <input class="fb-field" id="fbApiKey"     placeholder="apiKey *"    type="password">
+          <input class="fb-field" id="fbProjectId"  placeholder="projectId *" type="text">
+          <input class="fb-field" id="fbAuthDomain" placeholder="authDomain"  type="text">
+          <input class="fb-field" id="fbAppId"      placeholder="appId"       type="text">
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="btn btn-play btn-sm" id="fbSaveConfigBtn" style="flex:1">💾 Save & Connect</button>
+          <button class="btn btn-sm" id="fbCancelEditBtn" style="display:none;background:var(--bl);border:2px solid var(--border);color:var(--muted)">✕</button>
+        </div>
+        <div id="fbConfigError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:5px;min-height:14px"></div>
+      </div>
+    </div>
 
-      <!-- Firebase config export/import -->
-      <details style="margin-top:10px">
-        <summary style="font-size:12px;font-weight:800;color:var(--muted);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px">
-          <span>▸</span> 🔐 Export / Import Firebase Config
-        </summary>
-        <div style="padding-top:10px">
-          <div id="cfgExportNoConfig" style="font-size:11px;color:var(--muted);font-weight:700;padding:7px;background:var(--bl);border:2px solid var(--border);border-radius:10px;text-align:center;margin-bottom:8px">
-            Connect Firebase above first.
-          </div>
-          <div id="cfgExportForm" style="display:none;margin-bottom:10px">
-            <div style="font-size:11px;font-weight:800;color:var(--text);margin-bottom:5px">📤 Export</div>
-            <div style="display:flex;gap:5px;margin-bottom:5px">
-              <input type="password" id="cfgExportPasscode" class="fb-field" placeholder="Encryption passcode" style="flex:1">
-              <button class="btn btn-sm" onclick="togglePwVis('cfgExportPasscode',this)" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);padding:4px 8px">👁</button>
+    <!-- Lobby (when Firebase ready) -->
+    <div id="fbLobby" style="display:none;flex-direction:column;gap:0">
+      <div class="settings-section">
+        <div class="settings-label">🏠 Create a Room</div>
+        <div style="font-size:11px;font-weight:800;color:var(--muted);margin-bottom:5px">⚔️ You play as:</div>
+        <div class="side-picker" id="onlineSidePicker" style="margin-bottom:8px">
+          <button class="side-btn active-w" id="onlineSideW" onclick="setOnlineSide('w')"><span class="side-btn-icon">♔</span>White</button>
+          <button class="side-btn" id="onlineSideB" onclick="setOnlineSide('b')"><span class="side-btn-icon">♚</span>Black</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+          <div class="sw"><select id="onlineTimeSelect" class="sel"><option value="3">3 min</option><option value="5" selected>5 min</option><option value="10">10 min</option></select></div>
+          <div class="sw"><select id="onlineIncrSelect" class="sel"><option value="0">+0s</option><option value="5">+5s</option><option value="10" selected>+10s</option><option value="30">+30s</option></select></div>
+          <label class="toggle-wrap"><input type="checkbox" id="onlineTimerToggle" checked><span class="toggle-track"><span class="toggle-thumb"></span></span><span style="font-weight:800;font-size:11px">Timer</span></label>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <input type="password" id="newRoomPasscode" class="fb-field" placeholder="Room passcode (required)" style="flex:1">
+          <button type="button" class="btn btn-sm" onclick="togglePwVis('newRoomPasscode',this)" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);padding:4px 9px">👁</button>
+        </div>
+        <button class="btn btn-play btn-sm" id="createRoomBtn" style="width:100%">🏠 Create Room</button>
+        <div id="createRoomError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:5px;min-height:13px"></div>
+      </div>
+
+      <div class="settings-section" style="border-top:2px solid var(--border);padding-top:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div class="settings-label" style="margin:0">🌐 Open Rooms</div>
+          <button class="btn btn-sm" id="refreshLobbyBtn" style="font-size:10px;padding:3px 9px;background:var(--card);border:2px solid var(--border);color:var(--muted)">↺</button>
+        </div>
+        <div id="lobbyList" style="display:flex;flex-direction:column;gap:7px"><div class="lobby-empty">Loading rooms…</div></div>
+      </div>
+
+      <div class="settings-section" style="border-top:2px solid var(--border);padding-top:14px">
+        <div class="settings-label">✍️ Join by Code</div>
+        <input type="text" id="joinCodeInput" class="room-input" maxlength="6" placeholder="ABCDEF" autocomplete="off" spellcheck="false">
+        <button class="btn btn-play btn-sm" id="joinRoomBtn" style="width:100%;margin-top:7px">🤝 Join Room</button>
+        <div id="joinError" style="color:var(--primary-d);font-size:11px;font-weight:700;text-align:center;margin-top:5px;min-height:16px"></div>
+      </div>
+
+      <div class="settings-section" style="border-top:2px solid var(--border);padding-top:14px">
+        <div class="settings-label">🔐 Import Invite</div>
+        <textarea id="importBlob" class="fb-textarea" rows="2" placeholder="Paste encrypted invite…"></textarea>
+        <input type="password" id="importPasscode" class="fb-field" placeholder="Passcode" style="margin-top:6px;width:100%">
+        <button class="btn btn-play btn-sm" id="importJoinBtn" style="width:100%;margin-top:7px">🔓 Decrypt & Join</button>
+      </div>
+
+      <div class="settings-section" style="border-top:2px solid var(--border);padding-top:14px">
+        <div class="settings-label">🗑 Delete Room</div>
+        <input type="text" id="deleteRoomCode" class="room-input" maxlength="6" placeholder="Room code" style="margin-bottom:6px" autocomplete="off" spellcheck="false">
+        <input type="password" id="deleteRoomPasscode" class="fb-field" placeholder="Room passcode" style="margin-bottom:7px;width:100%">
+        <button class="btn btn-sm" id="deleteRoomManualBtn" style="width:100%;background:#fff5f5;border:2.5px solid var(--primary);color:var(--primary-d)">🗑 Delete Room</button>
+        <div id="deleteRoomError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:5px;min-height:13px"></div>
+      </div>
+
+      <div class="settings-section" style="border-top:2px solid var(--border);padding-top:14px">
+        <details>
+          <summary style="font-size:12px;font-weight:800;color:var(--muted);cursor:pointer;list-style:none;display:flex;align-items:center;gap:5px;padding:3px 0">▸ 🔐 Export / Import Firebase Config</summary>
+          <div style="padding-top:10px">
+            <div id="cfgExportNoConfig" style="font-size:11px;color:var(--muted);font-weight:700;padding:7px;background:var(--bl);border:2px solid var(--border);border-radius:10px;text-align:center;margin-bottom:8px">Connect Firebase above first.</div>
+            <div id="cfgExportForm" style="display:none;margin-bottom:10px">
+              <div style="font-size:11px;font-weight:800;color:var(--text);margin-bottom:5px">📤 Export</div>
+              <div style="display:flex;gap:5px;margin-bottom:5px">
+                <input type="password" id="cfgExportPasscode" class="fb-field" placeholder="Encryption passcode" style="flex:1">
+                <button class="btn btn-sm" onclick="togglePwVis('cfgExportPasscode',this)" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);padding:4px 8px">👁</button>
+              </div>
+              <button class="btn btn-hint btn-sm" style="width:100%" onclick="exportFirebaseConfig()">🔐 Generate Blob</button>
+              <div id="cfgExportResult" style="display:none;margin-top:7px">
+                <textarea id="cfgExportBlob" class="fb-textarea" rows="2" readonly style="font-size:10px;font-family:monospace"></textarea>
+                <button class="btn btn-sm" onclick="copyFirebaseConfigBlob()" style="width:100%;margin-top:5px;background:var(--secondary);color:#fff;border:none">📋 Copy</button>
+              </div>
+              <div id="cfgExportError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:5px;min-height:13px"></div>
             </div>
-            <button class="btn btn-hint btn-sm" style="width:100%" onclick="exportFirebaseConfig()">🔐 Generate Blob</button>
-            <div id="cfgExportResult" style="display:none;margin-top:7px">
-              <textarea id="cfgExportBlob" class="fb-textarea" rows="2" readonly style="font-size:10px;font-family:monospace"></textarea>
-              <button class="btn btn-sm" onclick="copyFirebaseConfigBlob()" style="width:100%;margin-top:5px;background:var(--secondary);color:#fff;border:none">📋 Copy</button>
-            </div>
-            <div id="cfgExportError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:5px;min-height:13px"></div>
-          </div>
-          <div>
             <div style="font-size:11px;font-weight:800;color:var(--text);margin-bottom:5px">📥 Import</div>
             <textarea id="cfgImportBlob" class="fb-textarea" rows="2" placeholder="Paste encrypted blob…"></textarea>
             <div style="display:flex;gap:5px;margin-top:5px">
@@ -815,16 +840,10 @@ select.sel:focus{border-color:var(--primary)}
             <div id="cfgImportError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:5px;min-height:13px"></div>
             <div id="cfgImportSuccess" style="color:var(--secondary-d);font-size:11px;font-weight:700;margin-top:3px;min-height:13px"></div>
           </div>
-        </div>
-      </details>
-    </div>
+        </details>
+      </div>
+    </div><!-- /fbLobby -->
 
-    <!-- Reset -->
-    <div class="settings-section" style="border-top:2px solid var(--border);padding-top:14px;margin-top:4px">
-      <button class="btn btn-sm" id="resetSettingsBtn" style="width:100%;background:#fff5f5;border:2.5px solid var(--primary);color:var(--primary-d)">
-        🔄 Reset All Settings to Default
-      </button>
-    </div>
   </div>
 </div>
 
@@ -901,11 +920,6 @@ select.sel:focus{border-color:var(--primary)}
   </div>
 </header>
 
-<!-- ═══ TAB BAR ═══ -->
-<nav class="tab-bar">
-  <button class="tab-btn active" data-view="play">🎮 Play</button>
-</nav>
-
 <!-- ═══ MAIN ═══ -->
 <div class="app-shell">
   <!-- Panel (full width now — board lives inside play panel) -->
@@ -917,6 +931,20 @@ select.sel:focus{border-color:var(--primary)}
       <!-- Board column -->
       <div class="board-col" style="flex:1 1 300px;min-width:280px;max-width:520px">
         <div class="board-card">
+          <!-- Online game bar — shows above timer when in an online game -->
+          <div id="onlineBoardBar" class="online-board-bar" onclick="openOnlineSettings()">
+            <div>
+              <div class="obb-code" id="obbRoomCode">------</div>
+              <div class="obb-color-label" id="obbColorLabel">● White</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+              <div style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:800;color:var(--text)">
+                <div class="obb-dot off" id="obbDot"></div>
+                <span id="obbStatus">Connecting…</span>
+              </div>
+              <div style="font-size:9px;font-weight:700;color:var(--muted)">tap for options</div>
+            </div>
+          </div>
           <!-- Timer bar — top center of board, hidden when timer disabled -->
           <div id="boardTimerBar" class="board-timer-bar hidden">
             <div class="timer-cell">
@@ -1023,26 +1051,6 @@ select.sel:focus{border-color:var(--primary)}
 
   </div><!-- /panel-col -->
 </div><!-- /app-shell -->
-
-<!-- Floating Online Game Status Card (shown when in an online game) -->
-<div id="onlineStatusCard" style="display:none;position:fixed;bottom:80px;right:16px;z-index:300;width:220px">
-  <div class="pc" style="box-shadow:0 8px 32px rgba(0,0,0,.22);border:2.5px solid var(--border)">
-    <div class="ob-title" style="font-size:13px;margin-bottom:8px">🌐 Online Game</div>
-    <div class="online-status-bar" style="flex-direction:column;gap:5px;align-items:flex-start">
-      <span id="myColorChip" class="color-chip white">♔ You: White</span>
-      <span id="opponentConnBadge" class="conn-badge waiting"><span class="conn-dot"></span> Waiting…</span>
-    </div>
-    <div style="margin-top:8px;font-size:11px;font-weight:700;color:var(--muted);text-align:center">
-      Room: <strong id="activeRoomCode" style="color:var(--primary);letter-spacing:2px;cursor:pointer" onclick="copyCode(roomCode)" title="Tap to copy">------</strong> 📋
-    </div>
-    <div id="activePasscodeRow" style="display:none;margin-top:6px;font-size:11px;font-weight:700;text-align:center;color:var(--muted)">
-      🔑 <span id="activePasscodeSpan" data-pw="">••••••</span>
-      <button class="btn btn-sm" style="margin-left:4px;background:var(--card);border:2px solid var(--border);color:var(--muted);padding:1px 7px;font-size:10px" onclick="togglePwVis('activePasscodeSpan',this,true)">👁</button>
-    </div>
-    <button class="btn btn-undo btn-sm" id="leaveRoomBtn" style="width:100%;margin-top:10px;font-size:11px">🚪 Leave Room</button>
-    <button class="btn btn-hint btn-sm" style="width:100%;margin-top:5px;font-size:11px" onclick="openSettings('online')">⚙️ Room Options</button>
-  </div>
-</div>
 
 <script>
 "use strict";
@@ -1228,6 +1236,7 @@ const SETTINGS_DEFAULTS = {
   timerEnabled: true,
   tooltipsEnabled: true,
   soundEnabled: true,
+  showValidMoves: true,
 };
 
 function loadSettings(){
@@ -1261,6 +1270,8 @@ function applyAllSettings(){
   document.getElementById('undoBtn').style.display=s.timerEnabled?'none':'inline-flex';
   // Tooltips
   tooltipsEnabled=s.tooltipsEnabled;
+  // Valid moves
+  showValidMoves=s.showValidMoves!==false;
   // Sound
   soundOn=s.soundEnabled;
   document.getElementById('soundToggle').textContent=s.soundEnabled?'🔊':'🔇';
@@ -1269,6 +1280,8 @@ function applyAllSettings(){
   if(settingTimer) settingTimer.checked=s.timerEnabled;
   const settingTooltips=document.getElementById('settingTooltips');
   if(settingTooltips) settingTooltips.checked=s.tooltipsEnabled;
+  const settingValidMoves=document.getElementById('settingValidMoves');
+  if(settingValidMoves) settingValidMoves.checked=s.showValidMoves!==false;
   const settingSound=document.getElementById('settingSound');
   if(settingSound) settingSound.checked=s.soundEnabled;
   // Sync theme swatches
@@ -1291,6 +1304,12 @@ function applySettingTooltips(val){
   tooltipsEnabled=val;
   if(!val) hideTooltip();
 }
+function applySettingValidMoves(val){
+  setSetting('showValidMoves',val);
+  showValidMoves=val;
+  // Re-render selection to immediately hide/show dots
+  if(selectedSquare) selectSq(selectedSquare); else renderBoard();
+}
 function applySettingSound(val){
   setSetting('soundEnabled',val);
   soundOn=val;
@@ -1304,34 +1323,51 @@ function applyTheme(theme,save=true){
 }
 
 // Settings modal open/close
+// ── Online icon state ──
+function updateOnlineIcon(){
+  const btn=document.getElementById('onlineBtn');
+  btn.classList.remove('st-red','st-green','st-blue');
+  if(onlineMode){ btn.classList.add('st-blue'); }
+  else if(fbReady){ btn.classList.add('st-green'); }
+  else { btn.classList.add('st-red'); }
+}
+
+// ── Online board bar ──
+function updateOnlineBoardBar(){
+  const bar=document.getElementById('onlineBoardBar');
+  if(!onlineMode){ bar.classList.remove('active'); return; }
+  bar.classList.add('active');
+  document.getElementById('obbRoomCode').textContent=roomCode||'------';
+  document.getElementById('obbColorLabel').textContent=(myColor==='w'?'♔ White':'♚ Black');
+  const dot=document.getElementById('obbDot');
+  const statusEl=document.getElementById('obbStatus');
+  dot.classList.toggle('on',opponentOnline);
+  dot.classList.toggle('off',!opponentOnline);
+  statusEl.textContent=opponentOnline?'Opponent online':'Opponent offline';
+}
+
+function openOnlineSettings(){
+  renderConfigUI(); // sync state
+  // Show/hide active game section
+  document.getElementById('activeGameSection').style.display=onlineMode?'block':'none';
+  document.getElementById('onlineOverlay').classList.add('open');
+}
+function closeOnlineSettings(){
+  document.getElementById('onlineOverlay').classList.remove('open');
+}
+
 function openSettings(section=''){
   const s=loadSettings();
   document.getElementById('settingTimer').checked=s.timerEnabled;
   document.getElementById('settingTooltips').checked=s.tooltipsEnabled;
   document.getElementById('settingSound').checked=s.soundEnabled;
-  // Refresh Firebase export section
-  const hasCfg=!!(loadStoredConfig()?.apiKey);
-  document.getElementById('cfgExportNoConfig').style.display=hasCfg?'none':'block';
-  document.getElementById('cfgExportForm').style.display=hasCfg?'block':'none';
-  document.getElementById('cfgExportPasscode').value='';
-  document.getElementById('cfgExportResult').style.display='none';
-  document.getElementById('cfgExportError').textContent='';
-  document.getElementById('cfgImportBlob').value='';
-  document.getElementById('cfgImportPasscode').value='';
-  document.getElementById('cfgImportError').textContent='';
-  document.getElementById('cfgImportSuccess').textContent='';
+  const svm=document.getElementById('settingValidMoves');
+  if(svm) svm.checked=s.showValidMoves!==false;
   document.getElementById('settingsOverlay').classList.add('open');
-  // Scroll to section if requested
-  if(section==='online'){
-    setTimeout(()=>{
-      const el=document.getElementById('settingsOnlineSection');
-      if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
-    },120);
-  }
 }
 
-// Wire online icon button
-document.getElementById('onlineBtn').addEventListener('click',()=>openSettings('online'));
+// Wire online icon button — opens online modal only
+document.getElementById('onlineBtn').addEventListener('click', openOnlineSettings);
 
 async function exportFirebaseConfig(){
   const errEl=document.getElementById('cfgExportError');
@@ -1376,7 +1412,8 @@ async function importFirebaseConfig(){
   if(!ok){errEl.textContent='❌ Firebase rejected the config — check apiKey and projectId';return;}
   // Refresh Online tab config UI
   renderConfigUI();
-  okEl.textContent='✅ Firebase connected! Switch to Online tab to create or join rooms.';
+  updateOnlineIcon();
+  okEl.textContent='✅ Firebase connected! Tap 🌐 to create or join rooms.';
   // Refresh export section
   document.getElementById('cfgExportNoConfig').style.display='none';
   document.getElementById('cfgExportForm').style.display='block';
@@ -1411,6 +1448,8 @@ document.getElementById('soundToggle').addEventListener('click',()=>{
 
 // tooltipsEnabled state variable (used by showTooltip)
 let tooltipsEnabled=true;
+// showValidMoves state variable (used by selectSq)
+let showValidMoves=true;
 
 // ══════════════════════════════════════════════
 // FEN PARSER
@@ -1584,6 +1623,7 @@ function renderConfigUI(){
     if(lobby&&!onlineMode) lobby.style.display='flex';
     fbInitFromConfig(cfg);
     startLobbyListener();
+    updateOnlineIcon();
   }else{
     form.style.display='block';
     badge.className='conn-badge disconnected';
@@ -1591,6 +1631,7 @@ function renderConfigUI(){
     if(editBtn)editBtn.style.display='none';
     if(clearBtn)clearBtn.style.display='none';
     if(lobby) lobby.style.display='none';
+    updateOnlineIcon();
   }
 }
 
@@ -1943,18 +1984,14 @@ function restoreGameStateLocal(gs){
 }
 
 function showActiveOnlineUI(){
-  // Show floating status card on the play tab
-  document.getElementById('onlineStatusCard').style.display='block';
-  // Hide lobby inside settings
-  document.getElementById('fbLobby').style.display='none';
-  // Show share panel option inside settings
-  const sharePanel=document.getElementById('sharePanel-active');
-  if(sharePanel) sharePanel.style.display='block';
+  updateOnlineIcon();
+  updateOnlineBoardBar();
+  // Populate active game section in online modal
   const chip=document.getElementById('myColorChip');
   chip.className='color-chip '+(myColor==='w'?'white':'black');
   chip.textContent=myColor==='w'?'♔ You: White':'♚ You: Black';
   document.getElementById('activeRoomCode').textContent=roomCode;
-  // Show passcode if creator has it in sessionStorage
+  // Passcode reveal
   const storedPw=sessionStorage.getItem('kchess-room-passcode')||localStorage.getItem('kchess-room-passcode');
   const pwRow=document.getElementById('activePasscodeRow');
   if(storedPw){
@@ -1965,8 +2002,8 @@ function showActiveOnlineUI(){
     pwRow.style.display='none';
   }
   updateOpponentBadge();
-  // Switch to Play tab and close settings
   switchView('play');
+  closeOnlineSettings();
   closeSettings();
 }
 
@@ -1988,6 +2025,7 @@ function updateOpponentBadge(){
   const badge=document.getElementById('opponentConnBadge');
   if(opponentOnline){badge.className='conn-badge connected';badge.innerHTML='<span class="conn-dot"></span> Opponent online';}
   else{badge.className='conn-badge disconnected';badge.innerHTML='<span class="conn-dot"></span> Opponent offline';}
+  updateOnlineBoardBar(); // keep bar in sync
 }
 
 async function leaveRoom(){
@@ -2040,10 +2078,11 @@ function detachAndReset(){
   document.querySelector('.board-col').classList.remove('board-flipped');
   clearSession();
   try{sessionStorage.removeItem('kchess-room-passcode');localStorage.removeItem('kchess-room-passcode');}catch(e){}
-  // Hide floating card, hide share panel, show lobby
-  document.getElementById('onlineStatusCard').style.display='none';
-  const sharePanel=document.getElementById('sharePanel-active');
-  if(sharePanel) sharePanel.style.display='none';
+  // Hide board bar, reset icon
+  document.getElementById('onlineBoardBar').classList.remove('active');
+  updateOnlineIcon();
+  document.getElementById('activeGameSection').style.display='none';
+  closeOnlineSettings();
   document.getElementById('fbLobby').style.display='flex';
   unsubLobby=null;
   startLobbyListener();
@@ -2682,6 +2721,7 @@ function selectSq(coord){
   legalMovesForSelection=pseudo.filter(m=>{const sn=snapState();return!inCheck(turn,applyOnBoard(m,sn,m.promotion?'Q':null).board)});
   renderBoard();hilite(r,c,'square-selected');
   legalMovesForSelection.forEach(m=>{
+    if(!showValidMoves)return;
     const el=getSqEl(m.toR,m.toC);if(!el)return;
     if(board[m.toR][m.toC])el.classList.add('square-capture');else el.classList.add('square-ghost-dot');
     el.classList.add('square-move-target');
@@ -2893,14 +2933,11 @@ document.getElementById('timerToggle').addEventListener('change',function(){
 // VIEW / TAB NAVIGATION
 // ══════════════════════════════════════════════
 function switchView(name){
-  const prev=document.querySelector('.tab-btn.active')?.dataset.view;
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===name));
+  // Only one view (play) — clock pause/resume for future-proofing
+  if(name!=='play'){pauseClock();}else{resumeClock();}
   document.querySelectorAll('.panel-view').forEach(v=>v.classList.toggle('active',v.id==='panel'+name.charAt(0).toUpperCase()+name.slice(1)));
-  if(prev==='play'&&name!=='play')pauseClock();
-  if(prev!=='play'&&name==='play')resumeClock();
 }
-
-document.querySelectorAll('.tab-btn').forEach(btn=>btn.addEventListener('click',()=>switchView(btn.dataset.view)));
+// No tab buttons to wire — single view app
 
 // ── ONLINE / FIREBASE BUTTON WIRING ──
 
@@ -2941,6 +2978,7 @@ document.getElementById('fbClearBtn').addEventListener('click', ()=>{
   if(!confirm('Clear saved Firebase config?'))return;
   clearStoredConfig();
   renderConfigUI();
+  updateOnlineIcon();
 });
 
 // Room actions
@@ -3028,7 +3066,8 @@ function renderLostPieces(){
 buildBoard();
 loadBadges();
 applyAllSettings();
-renderConfigUI(); // init Firebase connection state in settings
+renderConfigUI(); // init Firebase connection state + online icon
+updateOnlineIcon();
 document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('active',s.dataset.theme===document.documentElement.dataset.theme));
 // Initialize the board synchronously so pieces render immediately
 startNewGame();
