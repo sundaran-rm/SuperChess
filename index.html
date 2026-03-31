@@ -722,10 +722,28 @@ select.sel:focus{border-color:var(--primary)}
         <div style="background:linear-gradient(135deg,#1a56db14,#1a56db06);border:2px solid #1a56db44;border-radius:14px;padding:12px;margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <div>
-              <div style="font-family:'Bubblegum Sans',cursive;font-size:20px;letter-spacing:3px;color:#1a56db;cursor:pointer" onclick="copyCode(roomCode)" title="Tap to copy" id="activeRoomCode">------</div>
+              <div id="activeRoomName" style="font-family:'Bubblegum Sans',cursive;font-size:14px;color:var(--text);display:none;margin-bottom:2px"></div>
+              <div style="font-family:'Bubblegum Sans',cursive;font-size:20px;letter-spacing:3px;color:#1a56db;cursor:pointer" onclick="copyCode(roomCode)" title="Tap to copy code" id="activeRoomCode">------</div>
               <span id="myColorChip" class="color-chip white" style="margin-top:3px;display:inline-flex">♔ You: White</span>
             </div>
-            <span id="opponentConnBadge" class="conn-badge waiting"><span class="conn-dot"></span> Waiting…</span>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+              <span id="opponentConnBadge" class="conn-badge waiting"><span class="conn-dot"></span> Waiting…</span>
+              <button class="btn btn-sm" onclick="toggleRenameForm()" style="font-size:10px;padding:2px 8px;background:var(--bl);border:2px solid var(--border);color:var(--muted)">✏️ Rename</button>
+            </div>
+          </div>
+          <!-- Inline rename form -->
+          <div id="renameForm" style="display:none;margin-bottom:10px;padding:10px;background:var(--bl);border:2px solid var(--border);border-radius:12px">
+            <div style="font-size:11px;font-weight:800;color:var(--muted);margin-bottom:7px">✏️ Rename Room</div>
+            <input type="text" id="renameInput" class="fb-field" placeholder="New room name (max 32 chars)" maxlength="32" style="width:100%;margin-bottom:6px">
+            <div style="display:flex;gap:6px;margin-bottom:6px">
+              <input type="password" id="renamePasscode" class="fb-field" placeholder="Room passcode to confirm" style="flex:1">
+              <button class="btn btn-sm" onclick="togglePwVis('renamePasscode',this)" style="background:var(--bl);border:2px solid var(--border);color:var(--muted);padding:4px 8px">👁</button>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-play btn-sm" style="flex:1" onclick="renameRoom()">✏️ Save Name</button>
+              <button class="btn btn-sm" onclick="toggleRenameForm()" style="background:var(--bl);border:2px solid var(--border);color:var(--muted)">Cancel</button>
+            </div>
+            <div id="renameError" style="color:var(--primary-d);font-size:11px;font-weight:700;margin-top:5px;min-height:13px"></div>
           </div>
           <div id="activePasscodeRow" style="display:none;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px">
             🔑 Passcode: <span id="activePasscodeSpan" data-pw="" style="color:var(--primary);letter-spacing:1px">••••••</span>
@@ -779,6 +797,9 @@ select.sel:focus{border-color:var(--primary)}
     <div id="fbLobby" style="display:none;flex-direction:column;gap:0">
       <div class="settings-section">
         <div class="settings-label">🏠 Create a Room</div>
+        <div style="margin-bottom:8px">
+          <input type="text" id="newRoomName" class="fb-field" placeholder="Room name (optional)" maxlength="32" style="width:100%">
+        </div>
         <div style="font-size:11px;font-weight:800;color:var(--muted);margin-bottom:5px">⚔️ You play as:</div>
         <div class="side-picker" id="onlineSidePicker" style="margin-bottom:8px">
           <button class="side-btn active-w" id="onlineSideW" onclick="setOnlineSide('w')"><span class="side-btn-icon">♔</span>White</button>
@@ -954,6 +975,7 @@ select.sel:focus{border-color:var(--primary)}
           <div id="onlineBoardBar" class="online-board-bar" onclick="openOnlineSettings()">
             <div>
               <div class="obb-code" id="obbRoomCode">------</div>
+              <div id="obbRoomName" style="font-size:10px;font-weight:800;color:#4a7fe8;margin-top:1px;display:none"></div>
               <div class="obb-color-label" id="obbColorLabel">● White</div>
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
@@ -1721,6 +1743,7 @@ function renderLobby(snap,THREE_DAYS=3*24*60*60*1000){
       <div class="lobby-room-row">
         <div>
           <div class="lobby-room-code" onclick="copyCode('${code}')" style="cursor:pointer" title="Tap to copy">${code} <span style="font-size:11px">📋</span></div>
+          ${r.name?`<div style="font-size:12px;font-weight:800;color:var(--text);margin-top:1px">${r.name}</div>`:''}
           <div class="lobby-room-meta">⏱ ${timeLabel} · ${activeCount}/${playerCount>2?playerCount:2} · ${statusLabel}${expiryNote}${staleNote}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
@@ -1775,13 +1798,15 @@ async function createRoom(){
   const tMin=+document.getElementById('onlineTimeSelect').value;
   const incr=+document.getElementById('onlineIncrSelect').value;
   const passcodeHash=await sha256(passcodeRaw);
-  const hostColor=onlineHostSide; // 'w' or 'b' — host's chosen side
+  const hostColor=onlineHostSide;
+  const roomName=document.getElementById('newRoomName').value.trim().slice(0,32);
   try{
     await fbFs.collection('lobby').doc(code).set({
       config:{timeMin:tMin,incrSec:incr,timerEnabled:timerOn,createdAt:Date.now()},
+      name:roomName||'',
       status:'waiting',
       players:{[mySessionId]:{color:hostColor,online:true,joinedAt:Date.now(),lastSeen:Date.now()}},
-      takenColors:[hostColor], // tracks which colors are assigned
+      takenColors:[hostColor],
       playerCount:1,passcodeHash,gameState:null,result:null,
       createdAt:Date.now(),emptyAt:null
     });
@@ -1789,6 +1814,7 @@ async function createRoom(){
   errEl.textContent='';
   try{sessionStorage.setItem('kchess-room-passcode',passcodeRaw);}catch(e){}
   document.getElementById('newRoomPasscode').value='';
+  document.getElementById('newRoomName').value='';
   roomCode=code;myColor=hostColor;roomRef=fbFs.collection('lobby').doc(code);
   saveSession();
   onOnlineGameStart(false);
@@ -1983,6 +2009,8 @@ async function onOnlineGameStart(isRestore){
       opponentOnline=!!(oppEntry&&oppEntry[1].online);
       if(opponentOnline!==wasOnline)updateOpponentBadge();
     }
+    // Update room name if changed
+    if(data.name!==undefined) updateRoomNameDisplay(data.name||'');
     // Update spectator count for everyone
     const specCount=Object.keys(data.spectators||{}).length;
     const specEl=document.getElementById('spectatorCount');
@@ -2063,7 +2091,55 @@ function restoreGameStateLocal(gs){
   updateBanner();updateStatus();
 }
 
-function showActiveOnlineUI(){
+function updateRoomNameDisplay(name){
+  // Active section
+  const nameEl=document.getElementById('activeRoomName');
+  if(nameEl){ nameEl.textContent=name; nameEl.style.display=name?'block':'none'; }
+  // Board bar
+  const obbName=document.getElementById('obbRoomName');
+  if(obbName){ obbName.textContent=name; obbName.style.display=name?'block':'none'; }
+}
+
+function toggleRenameForm(){
+  const f=document.getElementById('renameForm');
+  const isOpen=f.style.display!=='none';
+  f.style.display=isOpen?'none':'block';
+  if(!isOpen){
+    // Pre-fill with current name
+    const cur=document.getElementById('activeRoomName')?.textContent||'';
+    document.getElementById('renameInput').value=cur;
+    document.getElementById('renamePasscode').value='';
+    document.getElementById('renameError').textContent='';
+    document.getElementById('renameInput').focus();
+  }
+}
+
+async function renameRoom(){
+  const errEl=document.getElementById('renameError');
+  errEl.textContent='';
+  const newName=document.getElementById('renameInput').value.trim().slice(0,32);
+  const passcode=document.getElementById('renamePasscode').value;
+  if(!passcode){errEl.textContent='⚠️ Enter the room passcode to confirm';return;}
+  if(!roomRef){errEl.textContent='⚠️ Not in a room';return;}
+  errEl.textContent='Verifying…';
+  let snap;
+  try{snap=await roomRef.get();}
+  catch(e){errEl.textContent='❌ Connection error';return;}
+  if(!snap.exists){errEl.textContent='❌ Room not found';return;}
+  const room=snap.data();
+  if(!room.passcodeHash){errEl.textContent='❌ This room has no passcode';return;}
+  if(await sha256(passcode)!==room.passcodeHash){errEl.textContent='❌ Wrong passcode';return;}
+  try{
+    await roomRef.update({name:newName});
+    updateRoomNameDisplay(newName);
+    document.getElementById('renameForm').style.display='none';
+    showToast('✏️ Room renamed!', newName||'Name cleared');
+  }catch(e){
+    errEl.textContent='❌ Update failed: '+e.message;
+  }
+}
+
+async function showActiveOnlineUI(){
   updateOnlineIcon();
   updateOnlineBoardBar();
   // Populate active game section in online modal
@@ -2080,6 +2156,12 @@ function showActiveOnlineUI(){
     chip.textContent=myColor==='w'?'♔ You: White':'♚ You: Black';
   }
   document.getElementById('activeRoomCode').textContent=roomCode;
+  // Fetch and display room name
+  try{
+    const snap=await roomRef.get();
+    const rName=(snap.exists&&snap.data().name)||'';
+    updateRoomNameDisplay(rName);
+  }catch(e){ updateRoomNameDisplay(''); }
   // Passcode reveal (only for players, not spectators)
   const storedPw=!isSpectator&&(sessionStorage.getItem('kchess-room-passcode')||localStorage.getItem('kchess-room-passcode'));
   const pwRow=document.getElementById('activePasscodeRow');
@@ -2177,6 +2259,8 @@ function detachAndReset(){
   // Hide board bar, reset icon
   document.getElementById('onlineBoardBar').classList.remove('active');
   document.getElementById('spectatorBanner').style.display='none';
+  const rf=document.getElementById('renameForm');if(rf)rf.style.display='none';
+  updateRoomNameDisplay('');
   updateOnlineIcon();
   document.getElementById('activeGameSection').style.display='none';
   closeOnlineSettings();
