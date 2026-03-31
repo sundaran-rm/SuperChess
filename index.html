@@ -541,8 +541,14 @@ select.sel:focus{border-color:var(--primary)}
 }
 /* Scale up slightly during flight for depth feel */
 .piece-flyer.flying{transform:scale(1.18)}
-/* ══ ONLINE BOARD BAR ══ */
-.online-board-bar{display:none;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;margin-bottom:6px;background:linear-gradient(135deg,#1a56db14,#1a56db06);border:2px solid #1a56db44;border-radius:14px;cursor:pointer;transition:background .2s}display:none;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;margin-bottom:6px;background:linear-gradient(135deg,#1a56db14,#1a56db06);border:2px solid #1a56db44;border-radius:14px;cursor:pointer;transition:background .2s}
+/* ══ SPECTATOR ══ */
+.spectator-banner{
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  padding:5px 12px;background:linear-gradient(135deg,#7c3aed18,#7c3aed08);
+  border:2px solid #7c3aed55;border-radius:12px;margin-bottom:6px;
+  font-size:11px;font-weight:800;color:#7c3aed;
+}
+.online-board-bar{display:none;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;margin-bottom:6px;background:linear-gradient(135deg,#1a56db14,#1a56db06);border:2px solid #1a56db44;border-radius:14px;cursor:pointer;transition:background .2s}
 .online-board-bar:hover{background:linear-gradient(135deg,#1a56db22,#1a56db0e)}
 .online-board-bar.active{display:flex}
 .obb-code{font-family:'Bubblegum Sans',cursive;font-size:16px;letter-spacing:2px;color:#1a56db;line-height:1}
@@ -940,6 +946,10 @@ select.sel:focus{border-color:var(--primary)}
       <!-- Board column -->
       <div class="board-col" style="flex:1 1 300px;min-width:280px;max-width:520px">
         <div class="board-card">
+          <!-- Spectator banner — shown when watching without playing -->
+          <div id="spectatorBanner" class="spectator-banner" style="display:none">
+            👁 Watching · <span id="spectatorCount"></span>
+          </div>
           <!-- Online game bar — shows above timer when in an online game -->
           <div id="onlineBoardBar" class="online-board-bar" onclick="openOnlineSettings()">
             <div>
@@ -951,6 +961,7 @@ select.sel:focus{border-color:var(--primary)}
                 <div class="obb-dot off" id="obbDot"></div>
                 <span id="obbStatus">Connecting…</span>
               </div>
+              <div style="font-size:9px;font-weight:700;color:#7c3aed" id="obbSpectators"></div>
               <div style="font-size:9px;font-weight:700;color:var(--muted)">tap for options</div>
             </div>
           </div>
@@ -1524,6 +1535,7 @@ const STALE_THRESHOLD_MS    = 60000; // 60 seconds — player considered disconn
 let fbApp=null, fbFs=null, fbReady=false;
 let onlineMode=false;
 let myColor='w';
+let isSpectator=false;  // true when watching a game without playing
 let roomCode='';
 let roomRef=null;
 let fbMovesSeen=new Set();
@@ -1717,7 +1729,9 @@ function renderLobby(snap,THREE_DAYS=3*24*60*60*1000){
             ?`<button class="btn btn-play btn-sm" onclick="rejoinRoom('${code}')">↩ Rejoin</button>`
             :(canJoin
               ?`<button class="btn btn-play btn-sm" onclick="joinRoomByCode('${code}')" title="Join as ${availableColor}">${hasStale?'🔄 Join':'Join as '+availableColor}</button>`
-              :`<span style="font-size:11px;color:var(--muted);font-weight:700">Full</span>`)}
+              :(isPlaying
+                ?`<button class="btn btn-sm" onclick="watchRoomByCode('${code}')" style="background:linear-gradient(135deg,#7c3aed18,#7c3aed08);border:2px solid #7c3aed55;color:#7c3aed;font-size:11px;padding:4px 10px">👁 Watch</button>`
+                :`<span style="font-size:11px;color:var(--muted);font-weight:700">Full</span>`))}
         </div>
       </div>`;
     list.appendChild(card);
@@ -1864,6 +1878,38 @@ async function joinRoom(){
   onOnlineGameStart(false);
 }
 
+async function watchRoomByCode(code){
+  document.getElementById('joinCodeInput').value=code;
+  await watchRoom(code);
+}
+
+async function watchRoom(code){
+  if(!fbReady){renderConfigUI();return;}
+  const errEl=document.getElementById('joinError');
+  errEl.textContent='Connecting as spectator…';
+  mySessionId=getOrCreateSessionId();
+  let snap;
+  try{snap=await fbFs.collection('lobby').doc(code).get();}
+  catch(e){errEl.textContent='❌ Connection error: '+e.message;return;}
+  if(!snap.exists){errEl.textContent='❌ Room not found.';return;}
+  const room=snap.data();
+  if(room.status==='deleted'||room.status==='finished'){errEl.textContent='❌ Room is no longer active.';return;}
+
+  errEl.textContent='';
+  roomCode=code;
+  myColor='w';        // irrelevant for spectator — board not flipped
+  isSpectator=true;
+  roomRef=fbFs.collection('lobby').doc(code);
+
+  // Register as spectator in Firestore (doesn't consume a player slot)
+  await roomRef.update({
+    [`spectators.${mySessionId}`]:{joinedAt:Date.now(),lastSeen:Date.now()}
+  }).catch(()=>{}); // non-critical — spectate even if this fails
+
+  saveSession();
+  onOnlineGameStart(false);
+}
+
 async function rejoinRoom(code){
   if(!fbReady){renderConfigUI();return;}
   mySessionId=getOrCreateSessionId();
@@ -1915,16 +1961,36 @@ async function onOnlineGameStart(isRestore){
     startNewGame(true);
   }
   showActiveOnlineUI();
-  if(myColor==='b')document.querySelector('.board-col').classList.add('board-flipped');
+  // Board orientation: spectators always see White at bottom; Black player flips
+  if(!isSpectator && myColor==='b') document.querySelector('.board-col').classList.add('board-flipped');
   else document.querySelector('.board-col').classList.remove('board-flipped');
+
+  // Spectator UI
+  const specBanner=document.getElementById('spectatorBanner');
+  if(isSpectator){
+    specBanner.style.display='flex';
+  }else{
+    specBanner.style.display='none';
+  }
 
   let lastResetAt=null;
   unsubRoom=roomRef.onSnapshot(snap=>{
     const data=snap.data();if(!data)return;
-    const oppEntry=Object.entries(data.players||{}).find(([sid])=>sid!==mySessionId);
-    const wasOnline=opponentOnline;
-    opponentOnline=!!(oppEntry&&oppEntry[1].online);
-    if(opponentOnline!==wasOnline)updateOpponentBadge();
+    // Opponent presence (only relevant for players, not spectators)
+    if(!isSpectator){
+      const oppEntry=Object.entries(data.players||{}).find(([sid])=>sid!==mySessionId);
+      const wasOnline=opponentOnline;
+      opponentOnline=!!(oppEntry&&oppEntry[1].online);
+      if(opponentOnline!==wasOnline)updateOpponentBadge();
+    }
+    // Update spectator count for everyone
+    const specCount=Object.keys(data.spectators||{}).length;
+    const specEl=document.getElementById('spectatorCount');
+    if(specEl) specEl.textContent=specCount>1?specCount+' watching':specCount===1?'1 watching':'';
+    if(!isSpectator){
+      const specBadgeEl=document.getElementById('obbSpectators');
+      if(specBadgeEl) specBadgeEl.textContent=specCount>0?'👁 '+specCount:'';
+    }
     if(data.status==='deleted'&&onlineMode){showAlertOverlay('🗑️','Room Deleted','This room was deleted.');detachAndReset();return;}
     if(data.result&&!gameOver){gameOver=true;stopClock();showWinOverlay(data.result.trophy,data.result.title,data.result.sub);updateBanner();}
     // Detect remote board reset
@@ -1960,7 +2026,8 @@ async function onOnlineGameStart(isRestore){
         const key=change.doc.id;
         if(fbMovesSeen.has(key))return;
         fbMovesSeen.add(key);
-        applyRemoteMove(change.doc.data());
+        // Spectators receive all moves; players skip their own echoes
+        applyRemoteMove(change.doc.data(), isSpectator);
       });
     },err=>{
       console.warn('[Moves listener error]',err);
@@ -2001,11 +2068,20 @@ function showActiveOnlineUI(){
   updateOnlineBoardBar();
   // Populate active game section in online modal
   const chip=document.getElementById('myColorChip');
-  chip.className='color-chip '+(myColor==='w'?'white':'black');
-  chip.textContent=myColor==='w'?'♔ You: White':'♚ You: Black';
+  if(isSpectator){
+    chip.className='color-chip';
+    chip.textContent='👁 Spectating';
+    chip.style.background='linear-gradient(135deg,#7c3aed18,#7c3aed08)';
+    chip.style.border='2px solid #7c3aed55';
+    chip.style.color='#7c3aed';
+  }else{
+    chip.style.cssText='';
+    chip.className='color-chip '+(myColor==='w'?'white':'black');
+    chip.textContent=myColor==='w'?'♔ You: White':'♚ You: Black';
+  }
   document.getElementById('activeRoomCode').textContent=roomCode;
-  // Passcode reveal
-  const storedPw=sessionStorage.getItem('kchess-room-passcode')||localStorage.getItem('kchess-room-passcode');
+  // Passcode reveal (only for players, not spectators)
+  const storedPw=!isSpectator&&(sessionStorage.getItem('kchess-room-passcode')||localStorage.getItem('kchess-room-passcode'));
   const pwRow=document.getElementById('activePasscodeRow');
   if(storedPw){
     pwRow.style.display='block';
@@ -2043,8 +2119,15 @@ function updateOpponentBadge(){
 
 async function leaveRoom(){
   if(onlineMode&&!confirm('Leave this room?'))return;
-  _markMeOffline();
-  await _decrementAndMaybeDelete();
+  if(isSpectator){
+    // Remove spectator record from Firestore
+    if(roomRef&&mySessionId){
+      roomRef.update({[`spectators.${mySessionId}`]:firebase.firestore.FieldValue.delete()}).catch(()=>{});
+    }
+  }else{
+    _markMeOffline();
+    await _decrementAndMaybeDelete();
+  }
   detachAndReset();
   startNewGame();
 }
@@ -2087,12 +2170,13 @@ function detachAndReset(){
   if(unsubMoves){unsubMoves();unsubMoves=null;}
   window.removeEventListener('beforeunload',_markMeOffline);
   roomRef=null;
-  onlineMode=false;roomCode='';myColor='w';fbMovesSeen=new Set();
+  onlineMode=false;isSpectator=false;roomCode='';myColor='w';fbMovesSeen=new Set();
   document.querySelector('.board-col').classList.remove('board-flipped');
   clearSession();
   try{sessionStorage.removeItem('kchess-room-passcode');localStorage.removeItem('kchess-room-passcode');}catch(e){}
   // Hide board bar, reset icon
   document.getElementById('onlineBoardBar').classList.remove('active');
+  document.getElementById('spectatorBanner').style.display='none';
   updateOnlineIcon();
   document.getElementById('activeGameSection').style.display='none';
   closeOnlineSettings();
@@ -2830,6 +2914,7 @@ function onBoardClick(e){
   if(hintTimeout){clearTimeout(hintTimeout);hintTimeout=null}
   const r=+sq.dataset.r,c=+sq.dataset.c;
   if(gameOver)return;
+  if(isSpectator)return; // spectators cannot move
   // Online: only move your color
   if(onlineMode&&turn!==myColor)return;
   // HvAI: human plays localPlayerSide, AI plays the other
@@ -2905,9 +2990,9 @@ function startNewGame(isOnline=false){
   if(blackNameEl) blackNameEl.textContent=
     onlineMode ? 'Opponent 🌐' : (humanVsAI?'Computer 🤖':'Player 2');
   // Undo: only allowed without timer and not online
-  document.getElementById('undoBtn').style.display=(timerEnabled||onlineMode)?'none':'inline-flex';
-  // Hint: disabled in online mode
-  document.getElementById('hintBtn').style.display=onlineMode?'none':'inline-flex';
+  document.getElementById('undoBtn').style.display=(timerEnabled||onlineMode||isSpectator)?'none':'inline-flex';
+  // Hint: disabled in online mode and spectator mode
+  document.getElementById('hintBtn').style.display=(onlineMode||isSpectator)?'none':'inline-flex';
   clearSel();resetClocks();updateBanner();
   if(onlineMode){
     statusEl.textContent=myColor==='w'?'♟️ You are White — make your move!':'⏳ Waiting for White to move…';
