@@ -532,8 +532,17 @@ select.sel:focus{border-color:var(--primary)}
 .ptip-icon img{width:36px;height:36px}
 .ptip-name{font-family:'Bubblegum Sans',cursive;font-size:14px;color:var(--primary);margin:2px 0}
 .ptip-desc{font-size:11px;color:var(--muted);font-weight:700;line-height:1.4}
+/* ══ PIECE ANIMATION ══ */
+.piece-flyer{
+  position:fixed;z-index:999;pointer-events:none;
+  display:flex;align-items:center;justify-content:center;
+  transition:transform 175ms cubic-bezier(.25,.46,.45,.94);
+  will-change:transform;
+}
+/* Scale up slightly during flight for depth feel */
+.piece-flyer.flying{transform:scale(1.18)}
 /* ══ ONLINE BOARD BAR ══ */
-.online-board-bar{display:none;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;margin-bottom:6px;background:linear-gradient(135deg,#1a56db14,#1a56db06);border:2px solid #1a56db44;border-radius:14px;cursor:pointer;transition:background .2s}
+.online-board-bar{display:none;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;margin-bottom:6px;background:linear-gradient(135deg,#1a56db14,#1a56db06);border:2px solid #1a56db44;border-radius:14px;cursor:pointer;transition:background .2s}display:none;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;margin-bottom:6px;background:linear-gradient(135deg,#1a56db14,#1a56db06);border:2px solid #1a56db44;border-radius:14px;cursor:pointer;transition:background .2s}
 .online-board-bar:hover{background:linear-gradient(135deg,#1a56db22,#1a56db0e)}
 .online-board-bar.active{display:flex}
 .obb-code{font-family:'Bubblegum Sans',cursive;font-size:16px;letter-spacing:2px;color:#1a56db;line-height:1}
@@ -1347,7 +1356,11 @@ function updateOnlineBoardBar(){
 }
 
 function openOnlineSettings(){
-  renderConfigUI(); // sync state
+  renderConfigUI(); // sync Firebase connection state
+  // Sync export/import panel — show export form if a config is already saved
+  const hasCfg=!!(loadStoredConfig()?.apiKey);
+  document.getElementById('cfgExportNoConfig').style.display=hasCfg?'none':'block';
+  document.getElementById('cfgExportForm').style.display=hasCfg?'block':'none';
   // Show/hide active game section
   document.getElementById('activeGameSection').style.display=onlineMode?'block':'none';
   document.getElementById('onlineOverlay').classList.add('open');
@@ -2170,22 +2183,26 @@ function pushMoveToFirebase(move,promo){
 
 function applyRemoteMove(mv, force=false){
   if(gameOver)return;
-  // Primary filter: same session = own move echo → skip
-  // Secondary filter: same color = own move (backup)
   if(!force && (mv.sid===mySessionId || mv.color===myColor))return;
   const legal=allLegal(turn);
   const matched=legal.find(m=>m.fromR===mv.fromR&&m.fromC===mv.fromC&&m.toR===mv.toR&&m.toC===mv.toC);
   if(!matched)return;
+  const animPiece=board[matched.fromR][matched.fromC];
+  let extraMoves=null;
+  if(matched.castle){
+    const row=matched.fromR,isKS=matched.toC>matched.fromC;
+    extraMoves=[isKS?{fromR:row,fromC:7,toR:row,toC:5,piece:animPiece[0]+'R'}:{fromR:row,fromC:0,toR:row,toC:3,piece:animPiece[0]+'R'}];
+  }
   const sn=snapState();
   applyMove(matched,mv.promo||null);
   const san=makeSAN(matched,sn);
   matched.san=san;moveHistory.push(matched);
   renderMoves();
   playPieceSound(matched.piece,!!(matched.capture||matched.enPassant));
-  // Render board immediately — paint the opponent's piece movement
   clearSel();
   renderBoard();
   switchClock();
+  animatePiece(matched.fromR,matched.fromC,matched.toR,matched.toC,animPiece,extraMoves);
   saveGameStateLocal();
   const fin=evalGameStatus();
   if(!fin&&inCheck(turn))SFX.check();
@@ -2667,7 +2684,56 @@ function insufMat(b){
 // ══════════════════════════════════════════════
 // PERFORM MOVE (play mode)
 // ══════════════════════════════════════════════
+// ══════════════════════════════════════════════
+// PIECE ANIMATION
+// ══════════════════════════════════════════════
+function animatePiece(fromR, fromC, toR, toC, pieceCode, extraMoves){
+  // extraMoves: [{fromR,fromC,toR,toC,piece}] for castling rook etc.
+  const moves = [{fromR,fromC,toR,toC,piece:pieceCode}, ...(extraMoves||[])];
+  moves.forEach(mv => {
+    const fromEl = getSqEl(mv.fromR, mv.fromC);
+    const toEl   = getSqEl(mv.toR,   mv.toC);
+    if(!fromEl||!toEl) return;
+
+    const fr = fromEl.getBoundingClientRect();
+    const tr = toEl.getBoundingClientRect();
+
+    const flyer = document.createElement('span');
+    flyer.className = 'piece piece-flyer ' + (mv.piece[0]==='w' ? 'white' : 'black');
+    flyer.textContent = PIECE_GLYPHS[mv.piece];
+    flyer.style.cssText = [
+      'left:'+fr.left+'px','top:'+fr.top+'px',
+      'width:'+fr.width+'px','height:'+fr.height+'px',
+      'font-size:'+(fr.height*.72)+'px','transform:translate(0,0) scale(1)'
+    ].join(';');
+    document.body.appendChild(flyer);
+
+    // Force reflow, then animate
+    flyer.getBoundingClientRect();
+    const dx = tr.left - fr.left;
+    const dy = tr.top  - fr.top;
+    flyer.style.transition = 'transform 175ms cubic-bezier(.25,.46,.45,.94)';
+    flyer.style.transform  = `translate(${dx}px,${dy}px) scale(1.15)`;
+
+    const cleanup = () => { if(flyer.parentNode) flyer.remove(); };
+    flyer.addEventListener('transitionend', cleanup, {once:true});
+    setTimeout(cleanup, 350); // failsafe
+  });
+}
+
 function performMove(move,promo){
+  // Capture animation info BEFORE applyMove changes board state
+  const animPiece = board[move.fromR][move.fromC];
+  // For castling: also animate the rook
+  let extraMoves = null;
+  if(move.castle){
+    const row = move.fromR;
+    const isKingSide = move.toC > move.fromC;
+    const rookFrom = isKingSide ? {fromR:row,fromC:7,toR:row,toC:5,piece:animPiece[0]+'R'}
+                                 : {fromR:row,fromC:0,toR:row,toC:3,piece:animPiece[0]+'R'};
+    extraMoves = [rookFrom];
+  }
+
   const sn=snapState();
   applyMove(move,promo);
   const san=makeSAN(move,sn);
@@ -2682,19 +2748,18 @@ function performMove(move,promo){
   else{playPieceSound(move.piece,!!(move.capture||move.enPassant))}
   if(move.piece[1]==='N'){knightMoveCount++;saveBadges();if(knightMoveCount>=5)awardBadge('knight_x5')}
 
-  // Render the board FIRST — clear selection highlights, paint new piece positions
+  // Render board (piece appears at destination instantly underneath the flyer)
   clearSel();
   renderBoard();
   switchClock();
+
+  // Launch flying animation overlay
+  animatePiece(move.fromR, move.fromC, move.toR, move.toC, animPiece, extraMoves);
 
   const fin=evalGameStatus();
   if(!fin&&inCheck(turn)){SFX.check();awardBadge('first_check')}
   if(!fin&&humanVsAI&&!onlineMode&&turn!==(localPlayerSide))setTimeout(aiTurn,280);
 
-  // Push to Firebase AFTER rendering — using rAF so the browser has painted
-  // the move before any Firestore snapshot callbacks can fire.
-  // This prevents the synchronous onSnapshot from the local write
-  // interfering with the DOM before the frame is committed.
   if(onlineMode){
     requestAnimationFrame(()=>pushMoveToFirebase(move,promo));
   }
@@ -2704,10 +2769,18 @@ function aiTurn(){
   const aiColor=localPlayerSide==='w'?'b':'w';
   if(gameOver||!humanVsAI||turn!==aiColor)return;
   const move=chooseAI();if(!move){evalGameStatus();return}
+  const animPiece=board[move.fromR][move.fromC];
+  let extraMoves=null;
+  if(move.castle){
+    const row=move.fromR,isKS=move.toC>move.fromC;
+    extraMoves=[isKS?{fromR:row,fromC:7,toR:row,toC:5,piece:animPiece[0]+'R'}:{fromR:row,fromC:0,toR:row,toC:3,piece:animPiece[0]+'R'}];
+  }
   const sn=snapState();applyMove(move,move.promotion?'Q':null);
   const san=makeSAN(move,sn);move.san=san;moveHistory.push(move);
   renderMoves();playPieceSound(move.piece,!!(move.capture||move.enPassant));
-  clearSel();renderBoard();switchClock();evalGameStatus();
+  clearSel();renderBoard();switchClock();
+  animatePiece(move.fromR,move.fromC,move.toR,move.toC,animPiece,extraMoves);
+  evalGameStatus();
 }
 
 // ══════════════════════════════════════════════
