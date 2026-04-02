@@ -2041,8 +2041,12 @@ async function onOnlineGameStart(isRestore){
     if(data.status==='deleted'&&onlineMode){showAlertOverlay('🗑️','Room Deleted','This room was deleted.');detachAndReset();return;}
     // Detect if this player was kicked
     if(!isSpectator&&data.kickedSid&&data.kickedSid===mySessionId){
+      // Clear the kickedSid so they can rejoin if they want
+      roomRef.update({kickedSid:firebase.firestore.FieldValue.delete(),kickedAt:firebase.firestore.FieldValue.delete()}).catch(()=>{});
       showAlertOverlay('👢','Removed from Room','You were removed from this room by the host.');
-      detachAndReset();return;
+      detachAndReset();
+      startNewGame();
+      return;
     }
     if(data.result&&!gameOver){gameOver=true;stopClock();showWinOverlay(data.result.trophy,data.result.title,data.result.sub);updateBanner();}
     // Detect remote board reset
@@ -2754,9 +2758,43 @@ const bottomTimerLabel=document.getElementById('bottomTimerLabel');
 function updateBanner(){
   bannerEl.className='turn-banner';
   if(gameOver){bannerEl.classList.add('over');return}
-  if(inCheck(turn)){bannerEl.classList.add('check');bannerIcon.textContent='⚠️';const s=turn==='w'?'White':(humanVsAI?'AI':'Black');bannerText.textContent=`${s} is in Check!`;return}
-  if(turn==='w'){bannerEl.classList.add('white');bannerIcon.textContent='♟️';bannerText.textContent="White's Turn!"}
-  else{bannerEl.classList.add('black');bannerIcon.textContent='♟️';bannerText.textContent=humanVsAI?'🤖 Computer thinking...':'Black\'s Turn!'}
+
+  const isMyTurn = onlineMode && !isSpectator && turn===myColor;
+
+  if(inCheck(turn)){
+    bannerEl.classList.add('check');
+    bannerIcon.textContent='⚠️';
+    if(onlineMode&&!isSpectator){
+      bannerText.textContent=isMyTurn?'⚠️ You are in Check!':'⚠️ Opponent in Check!';
+    }else{
+      const s=turn==='w'?'White':(humanVsAI?'AI':'Black');
+      bannerText.textContent=`${s} is in Check!`;
+    }
+    return;
+  }
+
+  if(turn==='w') bannerEl.classList.add('white');
+  else bannerEl.classList.add('black');
+  bannerIcon.textContent='♟️';
+
+  if(onlineMode&&!isSpectator){
+    // Online player: show "Your Turn" or "Opponent's Turn"
+    if(isMyTurn){
+      bannerText.textContent='Your Turn!';
+    }else{
+      bannerText.textContent="Opponent's Turn…";
+    }
+  }else if(onlineMode&&isSpectator){
+    // Spectator: show which color is moving
+    bannerText.textContent=turn==='w'?"White's Turn":"Black's Turn";
+  }else if(humanVsAI){
+    // Local vs AI
+    const aiColor=localPlayerSide==='w'?'b':'w';
+    bannerText.textContent=turn===aiColor?'🤖 Computer thinking...':'Your Turn!';
+  }else{
+    // Local 2-player: show color
+    bannerText.textContent=turn==='w'?"White's Turn!":"Black's Turn!";
+  }
 }
 
 const tips=['Tap a piece to see where it can move!','Protect your King at all times! 👑','Try to control the center of the board!','Knights move in an L-shape — sneaky! 🐴','Pawns can promote to any piece at the end!','The Queen can move in any direction!','Castling keeps your King safe! 🏰'];
